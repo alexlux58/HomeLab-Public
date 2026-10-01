@@ -1,0 +1,10 @@
+---
+# Append-only nightly copy of *arr scheduled backups to the NAS.
+# Gate: media_backup_allow + media_backup_confirmation "MEDIA BACKUP media-vm".
+- name: Configure *arr backups
+  hosts: media_guests
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  roles:
+    - role: media_backup

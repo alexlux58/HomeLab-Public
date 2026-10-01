@@ -9,11 +9,12 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+GROUP_VARS = ROOT.parent / "inventory/observability/group_vars/all.yml"
 
 
 class RepositoryTests(unittest.TestCase):
     def test_all_images_are_version_pinned(self) -> None:
-        compose = (ROOT / "docker" / "compose.yml").read_text(encoding="utf-8")
+        compose = (ROOT / "docker" / "compose.yaml").read_text(encoding="utf-8")
         images = re.findall(r"^\s+image:\s+(\S+)\s*$", compose, re.MULTILINE)
         self.assertGreaterEqual(len(images), 10)
         self.assertTrue(all(":" in image for image in images))
@@ -66,10 +67,10 @@ class RepositoryTests(unittest.TestCase):
             self.assertGreaterEqual(len(payload["panels"]), expected, filename)
 
     def test_dashboard_update_is_narrow_and_approval_gated(self) -> None:
-        playbook = (ROOT / "ansible/playbooks/update-dashboards.yml").read_text(
+        playbook = (ROOT / "ansible/playbooks/41-update-dashboards.yml").read_text(
             encoding="utf-8"
         )
-        variables = (ROOT / "ansible/inventory/group_vars/all.yml").read_text(
+        variables = GROUP_VARS.read_text(
             encoding="utf-8"
         )
         self.assertIn("serial: 1", playbook)
@@ -158,7 +159,7 @@ class RepositoryTests(unittest.TestCase):
         self.assertNotIn("qemu/297", expression)
 
     def test_dashboard_update_syncs_file_sd_and_blackbox(self) -> None:
-        playbook = (ROOT / "ansible/playbooks/update-dashboards.yml").read_text(
+        playbook = (ROOT / "ansible/playbooks/41-update-dashboards.yml").read_text(
             encoding="utf-8"
         )
         self.assertIn("config/prometheus/file_sd/", playbook)
@@ -178,7 +179,7 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(found, [])
 
     def test_retention_and_memory_limits_are_explicit(self) -> None:
-        compose = (ROOT / "docker/compose.yml").read_text(encoding="utf-8")
+        compose = (ROOT / "docker/compose.yaml").read_text(encoding="utf-8")
         loki = (ROOT / "config/loki/loki.yml").read_text(encoding="utf-8")
         self.assertIn("--storage.tsdb.retention.time=15d", compose)
         self.assertIn("--storage.tsdb.retention.size=8GB", compose)
@@ -186,7 +187,7 @@ class RepositoryTests(unittest.TestCase):
         self.assertGreaterEqual(compose.count("mem_limit:"), 10)
 
     def test_bootstrap_is_independent_and_fail_closed(self) -> None:
-        bootstrap = (ROOT / "ansible/playbooks/bootstrap.yml").read_text(encoding="utf-8")
+        bootstrap = (ROOT / "ansible/playbooks/20-bootstrap.yml").read_text(encoding="utf-8")
         common = (ROOT / "ansible/roles/common/tasks/main.yml").read_text(encoding="utf-8")
         self.assertIn("serial: 1", bootstrap)
         self.assertIn("any_errors_fatal: true", bootstrap)
@@ -199,7 +200,7 @@ class RepositoryTests(unittest.TestCase):
         self.assertIn("Refuse an unexpected emergency swap path", common)
 
     def test_runtime_secrets_have_metadata_only_size_floors(self) -> None:
-        variables = (ROOT / "ansible/inventory/group_vars/all.yml").read_text(encoding="utf-8")
+        variables = GROUP_VARS.read_text(encoding="utf-8")
         tasks = (ROOT / "ansible/roles/observability_stack/tasks/main.yml").read_text(
             encoding="utf-8"
         )
@@ -213,8 +214,8 @@ class RepositoryTests(unittest.TestCase):
 
     def test_deployment_restarts_docker_before_compose_and_validates_all_services(self) -> None:
         docker_tasks = (ROOT / "ansible/roles/docker/tasks/main.yml").read_text(encoding="utf-8")
-        validate = (ROOT / "ansible/playbooks/validate.yml").read_text(encoding="utf-8")
-        variables = (ROOT / "ansible/inventory/group_vars/all.yml").read_text(encoding="utf-8")
+        validate = (ROOT / "ansible/playbooks/90-validate.yml").read_text(encoding="utf-8")
+        variables = GROUP_VARS.read_text(encoding="utf-8")
         self.assertIn("ansible.builtin.meta: flush_handlers", docker_tasks)
         self.assertIn("observability_stack_expected_services:", variables)
         self.assertIn("--status\n          - running", validate)
@@ -224,13 +225,13 @@ class RepositoryTests(unittest.TestCase):
         self.assertGreaterEqual(validate.count("delay: 3"), 4)
 
     def test_exporter_secret_targets_match_config_paths(self) -> None:
-        compose = (ROOT / "docker/compose.yml").read_text(encoding="utf-8")
+        compose = (ROOT / "docker/compose.yaml").read_text(encoding="utf-8")
         self.assertIn("source: pve_config\n        target: pve.yml", compose)
         self.assertIn("source: snmp_config\n        target: snmp.yml", compose)
         self.assertIn('user: "0:0"', compose)
 
     def test_alertmanager_root_secret_exception_is_hardened(self) -> None:
-        compose = (ROOT / "docker/compose.yml").read_text(encoding="utf-8")
+        compose = (ROOT / "docker/compose.yaml").read_text(encoding="utf-8")
         alertmanager = compose.split("  alertmanager:\n", 1)[1].split("\n  loki:\n", 1)[0]
         self.assertIn('user: "0:0"', alertmanager)
         self.assertIn("read_only: true", alertmanager)
@@ -267,7 +268,7 @@ class RepositoryTests(unittest.TestCase):
         self.assertTrue(any(panel.get("type") == "text" for panel in payload["panels"]))
 
     def test_runtime_validation_rejects_restart_loops(self) -> None:
-        validate = (ROOT / "ansible/playbooks/validate.yml").read_text(encoding="utf-8")
+        validate = (ROOT / "ansible/playbooks/90-validate.yml").read_text(encoding="utf-8")
         self.assertIn("community.docker.docker_container_info", validate)
         self.assertIn("item.container.State.Restarting", validate)
         self.assertIn("item.container.RestartCount", validate)

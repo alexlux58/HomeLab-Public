@@ -1,0 +1,139 @@
+/* Print stylesheet for the technical walkthrough (WeasyPrint).
+   Light palette, one accent colour (--accent), DejaVu fonts embedded by
+   WeasyPrint. Page size comes from paper.css, written by build.py (PAPER). */
+
+:root {
+  --accent: #1f5f8b;
+  --ink: #1b1f23;
+  --muted: #5a6470;
+  --rule: #d0d7de;
+  --tint: #f4f7fa;
+  --note: #1f5f8b;
+  --warning: #9a6700;
+  --danger: #b42318;
+}
+
+@page {
+  margin: 22mm 18mm 20mm 18mm;
+  @top-left { content: "Home Lab Technical Walkthrough"; font: 8pt "DejaVu Sans"; color: var(--muted); }
+  @top-right { content: string(chapter); font: 8pt "DejaVu Sans"; color: var(--muted); }
+  @bottom-left { content: string(commit); font: 8pt "DejaVu Sans Mono"; color: var(--muted); }
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt "DejaVu Sans"; color: var(--muted); }
+}
+
+@page :first {
+  margin: 0;
+  @top-left { content: none; }
+  @top-right { content: none; }
+  @bottom-left { content: none; }
+  @bottom-right { content: none; }
+}
+
+html { font-family: "DejaVu Sans", sans-serif; font-size: 9.5pt; line-height: 1.45; color: var(--ink); }
+body { margin: 0; }
+
+/* ---------- cover ---------- */
+.cover { page-break-after: always; height: 100vh; padding: 60mm 22mm 0 22mm; box-sizing: border-box;
+  border-left: 10mm solid var(--accent); }
+.cover-kicker { font-family: "DejaVu Sans Mono", monospace; color: var(--accent); font-size: 10pt; margin: 0 0 6mm; }
+.cover-title { font-size: 30pt; font-weight: bold; line-height: 1.15; margin: 0 0 6mm; }
+.cover-subtitle { font-size: 13pt; color: var(--muted); margin: 0 0 18mm; }
+.cover-meta { border-collapse: collapse; font-size: 9pt; margin-bottom: 18mm; width: auto; }
+.cover-meta th { text-align: left; padding: 1.5mm 6mm 1.5mm 0; color: var(--muted); font-weight: normal; border: none; background: none; }
+.cover-meta td { font-family: "DejaVu Sans Mono", monospace; padding: 1.5mm 0; border: none; string-set: commit content(text); }
+.cover-meta tr + tr td { string-set: none; }
+.cover-audience { max-width: 130mm; color: var(--muted); font-size: 10pt; }
+
+/* ---------- table of contents ---------- */
+nav.toc { page-break-after: always; }
+nav.toc ul { list-style: none; padding-left: 0; margin: 0; }
+nav.toc ul ul { padding-left: 6mm; }
+nav.toc li { margin: 1mm 0; }
+nav.toc > ul > li { margin-top: 2.5mm; font-weight: bold; }
+nav.toc ul ul li { font-weight: normal; }
+nav.toc a { color: var(--ink); text-decoration: none; }
+nav.toc a::after { content: leader(".") target-counter(attr(href), page); color: var(--muted); }
+.toc-section-number { display: inline-block; min-width: 10mm; color: var(--accent); }
+
+/* ---------- headings ---------- */
+h1, h2, h3, h4 { color: var(--ink); line-height: 1.2; page-break-after: avoid; break-after: avoid; }
+main h1 { font-size: 20pt; border-bottom: 1.5pt solid var(--accent); padding-bottom: 2mm;
+  page-break-before: always; string-set: chapter content(text); margin: 0 0 5mm; }
+h2 { font-size: 14pt; margin: 8mm 0 3mm; }
+h3 { font-size: 11.5pt; margin: 6mm 0 2mm; }
+h4 { font-size: 10pt; margin: 4mm 0 1.5mm; }
+.header-section-number { color: var(--accent); margin-right: 3mm; }
+.toc-title { font-size: 20pt; border-bottom: 1.5pt solid var(--accent); padding-bottom: 2mm; margin: 0 0 5mm; }
+
+p, li { orphans: 3; widows: 3; }
+a { color: var(--accent); text-decoration: none; overflow-wrap: break-word; }
+em { color: inherit; }
+p > em:only-child { color: var(--muted); font-size: 8.5pt; }
+hr { border: none; border-top: 0.75pt solid var(--rule); }
+
+/* ---------- tables: never overflow ---------- */
+table { border-collapse: collapse; width: 100%; margin: 3mm 0 5mm; font-size: 8pt; table-layout: auto; }
+th, td { border: 0.5pt solid var(--rule); padding: 1.2mm 1.8mm; vertical-align: top; text-align: left;
+  overflow-wrap: anywhere; hyphens: auto; }
+thead th { background: var(--tint); color: var(--ink); }
+thead { display: table-header-group; }
+tr { page-break-inside: avoid; }
+td code, th code { font-size: 7.5pt; word-break: break-all; }
+
+/* ---------- code ---------- */
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.3pt; background: var(--tint); padding: 0 0.6mm; }
+pre { font-family: "DejaVu Sans Mono", monospace; font-size: 7.6pt; line-height: 1.35; background: var(--tint);
+  border-left: 1.5pt solid var(--accent); padding: 2mm 3mm; margin: 3mm 0 1mm; white-space: pre-wrap;
+  overflow-wrap: anywhere; }
+pre code { background: none; padding: 0; font-size: inherit; }
+div.sourceCode { margin: 3mm 0 1mm; }
+pre.numberSource { padding-left: 13mm; }
+/* Pandoc separates line spans with newlines, so the spans stay inline and the
+   newline breaks the line; each line's first <a> carries its number. */
+pre.numberSource code > span { counter-increment: source-line; }
+pre.numberSource code > span > a:first-child { display: inline-block; width: 9mm; margin-left: -12mm;
+  margin-right: 3mm; text-align: right; color: var(--muted); text-decoration: none; }
+pre.numberSource code > span > a:first-child::before { content: counter(source-line); }
+
+/* Pandoc skylighting token classes (light, readable in greyscale). */
+code span.al { color: #b42318; font-weight: bold; }
+code span.an { color: #6e7781; font-style: italic; }
+code span.at { color: #0a5b8a; }
+code span.bn, code span.dv, code span.fl { color: #7a3e9d; }
+code span.bu, code span.fu { color: #1f5f8b; }
+code span.ch, code span.st, code span.vs, code span.ss { color: #2d6a1f; }
+code span.cn { color: #7a3e9d; }
+code span.co, code span.cv, code span.do, code span.in { color: #6e7781; font-style: italic; }
+code span.cf, code span.kw { color: #8f2a0f; font-weight: bold; }
+code span.dt { color: #0a5b8a; }
+code span.er { color: #b42318; }
+code span.ex, code span.im { color: #1f5f8b; }
+code span.op { color: #57606a; }
+code span.pp { color: #9a6700; }
+code span.sc { color: #2d6a1f; }
+code span.va { color: #0a5b8a; }
+code span.wa { color: #9a6700; font-style: italic; }
+
+/* ---------- figures ---------- */
+figure { margin: 4mm 0 1mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 190mm; }
+figcaption { font-size: 8.5pt; color: var(--muted); margin-top: 2mm; }
+figcaption::before { content: "Figure " counter(figure) ". "; color: var(--accent); font-weight: bold; }
+figure { counter-increment: figure; }
+main { counter-reset: figure; }
+
+/* ---------- callouts: ::: note / ::: warning / ::: danger ---------- */
+div.note, div.warning, div.danger { border: 0.75pt solid; border-left-width: 3pt; padding: 2mm 3.5mm;
+  margin: 3mm 0 4mm; page-break-inside: avoid; }
+div.note::before, div.warning::before, div.danger::before { display: block; font-weight: bold;
+  font-size: 8pt; letter-spacing: 0.08em; margin-bottom: 1mm; }
+div.note { border-color: var(--note); background: #f1f6fa; }
+div.note::before { content: "NOTE"; color: var(--note); }
+div.warning { border-color: var(--warning); background: #fdf8ec; }
+div.warning::before { content: "WARNING"; color: var(--warning); }
+div.danger { border-color: var(--danger); background: #fdf1f0; }
+div.danger::before { content: "DANGER — DESTRUCTIVE STAGE"; color: var(--danger); }
+div.note > p:last-child, div.warning > p:last-child, div.danger > p:last-child { margin-bottom: 0; }
+
+/* ---------- appendix tables pulled in by include ---------- */
+.appendix table { font-size: 7.2pt; }

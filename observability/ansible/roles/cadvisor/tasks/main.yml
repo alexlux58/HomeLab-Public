@@ -9,8 +9,8 @@
 
 - name: Install bounded cAdvisor Compose model
   ansible.builtin.template:
-    src: compose.yml.j2
-    dest: /opt/exporters/cadvisor/compose.yml
+    src: compose.yaml.j2
+    dest: /opt/exporters/cadvisor/compose.yaml
     owner: root
     group: root
     mode: "0644"

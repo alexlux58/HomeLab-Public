@@ -1,0 +1,59 @@
+---
+# Stage 8 — join the empty .13 node.
+#
+#   make join-pve3 EXTRA_JSON='{"allow_join_pve3":true,"join_confirmation_pve3":"JOIN pve3 192.168.0.13 TO homelab"}'
+#
+# After the manual join, re-run with -e pve3_join_executed=true to validate.
+- name: Join .13 to the cluster
+  hosts: pve
+  gather_facts: true
+  serial: 1
+  any_errors_fatal: true
+  tags: [stage8, join]
+
+  pre_tasks:
+    - name: Require the fingerprint of the reinstalled node to have been verified
+      ansible.builtin.assert:
+        that:
+          - pve3_fingerprint_verified | bool
+        fail_msg: >-
+          .13 was clean-installed, so its SSH host key is new. Verify it at the
+          console and re-run with -e pve3_fingerprint_verified=true.
+
+    - name: Require both .11 backup generations to have verified
+      ansible.builtin.stat:
+        path: "{{ artifacts_dir }}/backup-verification.json"
+      delegate_to: localhost
+      become: false
+      register: join222_backup_verification
+
+    - name: Assert backup verification passed
+      ansible.builtin.assert:
+        that:
+          - join222_backup_verification.stat.exists
+          - (lookup('file', artifacts_dir ~ '/backup-verification.json') | from_json).verdict == 'pass'
+          - (lookup('file', artifacts_dir ~ '/backup-verification.json') | from_json).required_generations
+            | sort == ['final', 'initial']
+        fail_msg: >-
+          Both .11 backup generations must pass verification before .13 joins.
+          Run `make verify-backups` and resolve every failure first.
+
+  roles:
+    - role: ssh_validation
+
+    - role: pve_join
+      pve_join_allow: "{{ allow_join_pve3 }}"
+      pve_join_confirmation: "{{ join_confirmation_pve3 }}"
+      pve_join_confirmation_required: "{{ join_confirmation_pve3_required }}"
+      pve_join_executed: "{{ pve3_join_executed }}"
+      pve_join_allow_var: allow_join_pve3
+      pve_join_confirmation_var: join_confirmation_pve3
+      pve_join_executed_var: pve3_join_executed
+
+  post_tasks:
+    - name: Report the two-node state
+      ansible.builtin.debug:
+        msg:
+          - "The cluster now has {{ cluster_seed_host }} and {{ expected_hostname }}."
+          - "A two-node cluster has NO fault tolerance: losing either node loses quorum."
+          - "That is expected and temporary — .12 joins in stage 9."

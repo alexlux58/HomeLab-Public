@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: Home Lab
+  description: Reconcile Proxmox vzdump jobs, onboot and startup order with inventory/lab.yml (rung L1)
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [trixie]
+dependencies: []

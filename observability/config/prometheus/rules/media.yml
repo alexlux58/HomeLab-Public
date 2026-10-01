@@ -1,0 +1,17 @@
+---
+# media-vm pushes its series (ADR-0006). workstation sleeps after five hours
+# on AC, so ABSENT series are expected and never alert. Only a guest that is
+# up and pushing, but whose exporter scrape fails, alerts.
+# Input check before relying on this rule: after the first media deploy, query
+# up{host="media-vm"} and confirm it returns series (lessons-learned).
+groups:
+  - name: media
+    rules:
+      - alert: MediaExporterDown
+        expr: up{host="media-vm"} == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Media exporter scrape failing on media-vm"
+          description: "{{ $labels.job }} {{ $labels.app }} has been down for 15 minutes while the guest is pushing."

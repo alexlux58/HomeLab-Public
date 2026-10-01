@@ -1,0 +1,31 @@
+#cloud-config
+# media-vm first boot (rung L0 for the media guest). Written in Phase 3
+# from inventory/lab.yml; it replaces the unversioned seed under .runtime/,
+# which was never read into this repository.
+#
+# Placeholders are filled at build time by the operator, never committed:
+#   ${MEDIA_ADMIN_USER}                admin account (uid 1000, runs the containers)
+#   ${MEDIA_ADMIN_SSH_PUBLIC_KEY}      public key only
+#   ${MEDIA_HOSTNAME}                  e.g. media-vm
+# Build the seed with `cloud-localds seed.iso user-data meta-data` and attach
+# it as the VM's second optical drive (docs/runbooks/rebuild-from-zero.md, L0).
+hostname: ${MEDIA_HOSTNAME}
+timezone: America/Los_Angeles
+users:
+  - name: ${MEDIA_ADMIN_USER}
+    uid: "1000"
+    groups: [sudo, docker]
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${MEDIA_ADMIN_SSH_PUBLIC_KEY}
+ssh_pwauth: false
+disable_root: true
+package_update: true
+packages:
+  - openssh-server
+  - python3
+  - unattended-upgrades
+runcmd:
+  - [systemctl, enable, --now, ssh]
+# Docker, mounts and the *arr stack are Ansible's job (30- and 40- playbooks).

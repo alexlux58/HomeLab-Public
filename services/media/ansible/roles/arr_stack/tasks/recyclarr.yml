@@ -1,0 +1,22 @@
+---
+# Recyclarr owns quality profiles and custom formats (ADR-0004).
+# --preview by default; the real sync needs the second gate.
+- name: Decide whether this run may write to Radarr
+  ansible.builtin.set_fact:
+    arr_stack_recyclarr_apply: >-
+      {{ (arr_stack_allow_recyclarr_sync | bool)
+         and arr_stack_recyclarr_confirmation == ('RECYCLARR SYNC ' ~ inventory_hostname) }}
+
+- name: Run Recyclarr (preview unless approved)
+  ansible.builtin.command:
+    argv: >-
+      {{ ['docker', 'compose', '--project-directory', arr_stack_project_dir, '--profile', 'recyclarr',
+          'run', '--rm', 'recyclarr', 'sync']
+         + ([] if arr_stack_recyclarr_apply | bool else ['--preview']) }}
+  register: arr_stack_recyclarr
+  changed_when: arr_stack_recyclarr_apply | bool
+  become: true
+
+- name: Show what Recyclarr did or would do
+  ansible.builtin.debug:
+    var: arr_stack_recyclarr.stdout_lines

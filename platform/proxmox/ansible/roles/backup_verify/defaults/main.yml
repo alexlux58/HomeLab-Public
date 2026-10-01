@@ -1,0 +1,3 @@
+---
+backup_verify_remote_script: "{{ remote_work_dir }}/verify-archives.sh"
+backup_verify_timeout_seconds: 21600     # 6h — vma verify streams the whole archive

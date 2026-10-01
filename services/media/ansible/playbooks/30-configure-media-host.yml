@@ -1,0 +1,10 @@
+---
+# Packages, service directories and NAS automounts on media-vm.
+# Gate: media_host_allow + media_host_confirmation "MEDIA HOST media-vm".
+- name: Configure the media guest
+  hosts: media_guests
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  roles:
+    - role: media_host

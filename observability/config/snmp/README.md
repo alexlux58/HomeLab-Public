@@ -10,4 +10,3 @@ official SNMP Exporter generator, then install the generated file as:
 
 Enable SNMPv3 in DSM with a dedicated read-only monitoring user. Do not enable
 SNMPv1/v2c and do not place the passphrases in Ansible inventory or shell history.
-

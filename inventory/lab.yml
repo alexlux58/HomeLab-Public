@@ -1,0 +1,264 @@
+---
+# ===========================================================================
+# Single source of truth for the Home Lab (ADR-0005).
+#
+# OpenTofu reads this file with yamldecode(); the Ansible inventories under
+# inventory/ are validated against it (tools/repo-checks/inventory_contract.py,
+# tests/test_inventory_contract.py). Change a live identity here first, then
+# the consumer, in the same commit.
+#
+# Values come from recorded evidence only (docs/reference/environment.md,
+# HOMELAB-ROADMAP.md, MEMORY.md). `null` means "not recorded": a consumer that
+# needs it must refuse to run until the operator supplies it. No secrets here.
+# ===========================================================================
+schema_version: 2
+
+network:
+  cidr: 192.168.0.0/24            # one flat /22; 192.168.0.x is NOT a separate zone
+  gateway: 192.168.0.1            # the router; never authoritative for the lab zone
+  bridge: vmbr0                   # not VLAN-aware on any node
+  dns_zone: lab.example.com
+  lab_resolver: 192.168.0.20      # Synology split-horizon DNS
+  ntp: pool.ntp.org
+  timezone: America/Los_Angeles
+
+nodes:
+  pve1:
+    alias: pve1
+    inventory_name: pve1
+    address: 192.168.0.11
+    cluster_seed: true
+    host_fingerprint: "SHA256:EXAMPLE_FINGERPRINT_REDACTED"
+    hardware: "Xeon E-2186M, 12c, 31 GiB, 477 GiB NVMe"
+    storage: {local: dir, local-lvm: null}
+    install:                       # L0 answer file inputs
+      fqdn: null                   # operator: the node's FQDN as installed (not recorded)
+      filesystem: ext4
+      disk_filter: null            # operator: {UDEV_PROPERTY: pattern} from `device-info -t disk`
+      interface_filter: null       # operator: {UDEV_PROPERTY: pattern} from `device-info -t network`
+  pve2:
+    alias: pve2
+    inventory_name: pve2
+    address: 192.168.0.12
+    cluster_seed: false
+    host_fingerprint: "SHA256:EXAMPLE_FINGERPRINT_REDACTED"
+    hardware: "i5-8250U, 8c, 11.5 GiB, 932 GiB HDD"
+    storage: {local: dir, local-lvm: lvmthin}
+    install:
+      fqdn: null                   # operator: the node's FQDN as installed (not recorded)
+      filesystem: ext4
+      disk_filter: null
+      interface_filter: null
+  pve3:
+    alias: pve3
+    inventory_name: pve
+    address: 192.168.0.13
+    cluster_seed: false
+    host_fingerprint: "SHA256:EXAMPLE_FINGERPRINT_REDACTED"
+    hardware: "i5-6500, 4c, 7.6 GiB, 112 GiB SSD"
+    storage: {local: dir, local-lvm: lvmthin}
+    install:
+      fqdn: null                   # operator: the node's FQDN as installed (not recorded)
+      filesystem: ext4
+      disk_filter: null
+      interface_filter: null
+
+cluster:
+  name: homelab
+  ha_enabled: false
+  backup_storage: synology-backup   # NFS on NAS Volume 1, prune-backups keep-all=1
+
+# Guests. `rebuild` marks guests the rebuild-only root can recreate (ADR-0007);
+# EVE-NG is restored from vzdump instead.
+guests:
+  eveng:
+    vmid: 290
+    node: pve1
+    address: null
+    mac: null
+    protected: true
+    onboot: null                   # not recorded; measure before L1 enforces it
+    rebuild: false
+    restore_from: vzdump
+  homelab-services:
+    vmid: 300
+    node: pve2
+    address: 192.168.0.30/24
+    mac: 52:54:00:00:00:00
+    cores: 4
+    cpu_type: host
+    memory_mib: 6144
+    disk_gib: 120
+    datastore: local-lvm
+    disk_format: raw
+    ssd: false
+    admin_user: labuser
+    ssh_key: ~/.ssh/homelab_services_ed25519
+    host_fingerprint: "SHA256:EXAMPLE_FINGERPRINT_REDACTED"
+    inventory: homelab-services.yml
+    protected: true
+    onboot: true
+    startup: {order: 1, up: 30, down: 120}
+    rebuild: true
+  observability:
+    vmid: 310
+    node: pve1
+    address: 192.168.0.31/24
+    mac: 52:54:00:00:00:00
+    cores: 4
+    cpu_type: host
+    memory_mib: 4096
+    disk_gib: 64
+    datastore: local
+    disk_format: qcow2
+    ssd: true
+    admin_user: labuser
+    ssh_key: ~/.ssh/homelab_observability_ed25519
+    host_fingerprint: "SHA256:EXAMPLE_FINGERPRINT_REDACTED"
+    inventory: observability/hosts.yml
+    protected: true
+    onboot: false                  # until its restore and onboot gates pass
+    startup: {order: 2, up: 60, down: 180}
+    rebuild: true
+  bao-1:
+    vmid: 320
+    node: pve1
+    address: 192.168.0.41/24
+    mac: 52:54:00:00:00:00
+    cores: 2
+    cpu_type: x86-64-v2-AES
+    memory_mib: 2048
+    disk_gib: 24
+    datastore: local
+    disk_format: qcow2
+    ssd: true
+    admin_user: openbao-admin
+    host_fingerprint: "SHA256:EXAMPLE_FINGERPRINT_REDACTED"
+    inventory: secrets-openbao/hosts.yml
+    protected: true
+    onboot: false
+    startup: {order: 3, up: 30, down: 120}
+    rebuild: true
+  bao-2:
+    vmid: 321
+    node: pve2
+    address: 192.168.0.42/24
+    mac: 52:54:00:00:00:00
+    cores: 2
+    cpu_type: x86-64-v2-AES
+    memory_mib: 2048
+    disk_gib: 24
+    datastore: local-lvm
+    disk_format: raw
+    ssd: false
+    admin_user: openbao-admin
+    host_fingerprint: "SHA256:EXAMPLE_FINGERPRINT_REDACTED"
+    inventory: secrets-openbao/hosts.yml
+    protected: true
+    onboot: false
+    startup: {order: 3, up: 30, down: 120}
+    rebuild: true
+  bao-3:
+    vmid: 322
+    node: pve3
+    address: 192.168.0.43/24
+    mac: 52:54:00:00:00:00
+    cores: 2
+    cpu_type: x86-64-v2-AES
+    memory_mib: 2048
+    disk_gib: 24
+    datastore: local-lvm
+    disk_format: raw
+    ssd: true
+    admin_user: openbao-admin
+    host_fingerprint: null         # pinned in operator known_hosts; not recorded in Git
+    inventory: secrets-openbao/hosts.yml
+    protected: true
+    onboot: false
+    startup: {order: 3, up: 30, down: 120}
+    rebuild: true
+  netbox:
+    vmid: 330
+    node: pve3
+    address: 192.168.0.50/24
+    mac: 52:54:00:00:00:00
+    cores: 2
+    cpu_type: x86-64-v2-AES
+    memory_mib: 3072
+    disk_gib: 32
+    datastore: local-lvm
+    disk_format: raw
+    ssd: true
+    admin_user: netbox-admin
+    ssh_key: ~/.ssh/homelab_netbox_ed25519
+    host_fingerprint: "SHA256:EXAMPLE_FINGERPRINT_REDACTED"
+    inventory: netbox.yml
+    protected: true
+    onboot: false                  # until its isolated restore gate passes
+    startup: {order: 4, up: 30, down: 180}
+    rebuild: true
+  restore-test:
+    vmid: 399
+    node: null
+    address: null
+    mac: null
+    protected: true
+    onboot: false
+    rebuild: false
+    restore_from: none             # isolated restore target; state not re-verified
+
+# VMIDs that must never be reused without operator approval.
+retired_vmids: [297]
+
+# Proxmox scheduled backups (HOMELAB-ROADMAP.md 1.5/1.6; MIGRATION-STATUS.md).
+# Proxmox never prunes: storage is keep-all=1. L1 creates missing jobs only.
+backup_jobs:
+  - {vmid: 300, node: pve2, schedule: "03:15", mode: snapshot}
+  - {vmid: 290, node: pve1, schedule: "sun 01:00", mode: snapshot}
+  - {vmid: 310, node: pve1, schedule: "04:15", mode: snapshot}
+  - {vmid: 330, node: pve3, schedule: "04:45", mode: snapshot}
+  - {vmid: 320, node: pve1, schedule: "05:05", mode: snapshot}
+  - {vmid: 321, node: pve2, schedule: "05:15", mode: snapshot}
+  - {vmid: 322, node: pve3, schedule: "05:25", mode: snapshot}
+
+nas:
+  name: nas1
+  alias: nas
+  address: 192.168.0.20
+  ssh_port: 2258
+  ssh_user: labadmin
+  host_fingerprint: "SHA256:EXAMPLE_FINGERPRINT_REDACTED"
+  model: the NAS
+  shares:
+    proxmox-cluster-backups: {volume: 1, purpose: vzdump archives (NFS)}
+    Media: {volume: 2, purpose: media library, subdirs: [Movies, Downloads]}
+
+workstation:
+  name: workstation
+  alias: workstation
+  address: 192.168.0.70
+  ssh_user: alexssh
+  os: Windows 11 Home
+  role: on-demand capacity; never a Proxmox host
+  media_guest:
+    name: media-vm
+    hypervisor: VirtualBox
+    os: Ubuntu 24.04
+    cores: 2
+    memory_mib: 4096
+    data_disk_gib: 50
+    uid: 1000
+    gid: 1000
+    media_mount: /mnt/media
+
+unmanaged:
+  pivpn: {address: 192.168.0.60, note: "WireGuard, IPsec, Pi-hole, vsftpd"}
+
+# Split-horizon records served by the Synology. Proxied sites resolve to NPM.
+dns_records:
+  npm_ingress: 192.168.0.30
+  proxied: [home, status, tools, netknife, links, drop, speed, grafana, prometheus, alert, netbox, ipam, bao]
+  direct:
+    bao-1: 192.168.0.41
+    bao-2: 192.168.0.42
+    bao-3: 192.168.0.43

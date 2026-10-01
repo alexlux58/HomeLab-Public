@@ -1,0 +1,9 @@
+# Media controller tooling. Same Ansible pins as observability.
+ansible-core==2.19.4
+ansible-lint==25.12.2
+yamllint==1.37.1
+pytest==8.4.2
+PyYAML==6.0.3
+ruff==0.12.11
+# Plex library script (imported lazily; tests run without it).
+plexapi==4.18.3

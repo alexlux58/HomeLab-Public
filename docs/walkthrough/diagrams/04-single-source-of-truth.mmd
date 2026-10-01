@@ -1,0 +1,18 @@
+flowchart LR
+  lab[("inventory/lab.yml<br/>nodes, guests, VMIDs, MACs,<br/>addresses, backup jobs, DNS")]
+  subgraph tofu["OpenTofu (yamldecode)"]
+    rb["rebuild-guests root"]
+  end
+  subgraph ans["Ansible"]
+    l1["pve_host_config (L1)<br/>vzdump jobs, onboot"]
+  end
+  subgraph scripts["Python"]
+    ans_files["build_answer_files.py (L0)"]
+    seed["netbox_seed_csv.py"]
+    plan["rebuild_plan.py"]
+  end
+  subgraph checked["Validated against lab.yml (drift = test failure)"]
+    invs["5 Ansible inventories"]
+    live["3 live OpenTofu roots"]
+  end
+  lab -. "inventory_contract.py" .-> invs & live

@@ -1,0 +1,4 @@
+# Cross-component contract tests. Standard library plus these pins.
+pytest==8.4.2
+PyYAML==6.0.3
+ruff==0.12.11

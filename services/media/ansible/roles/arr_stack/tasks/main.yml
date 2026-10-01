@@ -1,0 +1,78 @@
+---
+- name: Require the media-deploy approval and its exact confirmation
+  ansible.builtin.assert:
+    that:
+      - arr_stack_allow | bool
+      - arr_stack_confirmation == ('MEDIA DEPLOY ' ~ inventory_hostname)
+    fail_msg: "Set arr_stack_allow=true and arr_stack_confirmation='MEDIA DEPLOY {{ inventory_hostname }}'."
+    quiet: true
+
+- name: Read the operator-installed secret files (metadata only)
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    get_checksum: false
+  loop: "{{ arr_stack_secret_files }}"
+  register: arr_stack_secrets
+  become: true
+
+- name: Refuse missing or loosely permissioned secret files
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.pw_name == 'root'
+      - item.stat.mode == '0600'
+    fail_msg: "{{ item.item }} must exist as root:root 0600 (operator step, L7 table)."
+    quiet: true
+  loop: "{{ arr_stack_secrets.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Create the Compose project directory
+  ansible.builtin.file:
+    path: "{{ arr_stack_project_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Install the reviewed Compose, Alloy and Recyclarr configuration
+  ansible.builtin.copy:
+    src: "{{ arr_stack_config_root }}/{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ item.owner }}"
+    group: "{{ item.owner }}"
+    mode: "0644"
+  loop:
+    - {src: compose.yaml, dest: "{{ arr_stack_project_dir }}/compose.yaml", owner: root}
+    - {src: alloy/config.alloy, dest: /srv/alloy/config.alloy, owner: root}
+    - {src: recyclarr/recyclarr.yml, dest: /srv/recyclarr/config/recyclarr.yml, owner: "1000"}
+  loop_control:
+    label: "{{ item.dest }}"
+  become: true
+
+- name: Bring the stack to the declared state (images are digest-pinned)
+  community.docker.docker_compose_v2:
+    project_src: "{{ arr_stack_project_dir }}"
+    state: present
+    pull: missing
+  become: true
+
+- name: Read every expected container's state
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  loop: "{{ arr_stack_expected_containers }}"
+  register: arr_stack_containers
+  become: true
+
+- name: Require every expected container to be running without a restart loop
+  ansible.builtin.assert:
+    that:
+      - item.exists
+      - item.container.State.Status == 'running'
+      - item.container.RestartCount | int < 3
+    fail_msg: "{{ item.item }} is not healthy."
+    quiet: true
+  loop: "{{ arr_stack_containers.results }}"
+  loop_control:
+    label: "{{ item.item }}"

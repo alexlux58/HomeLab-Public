@@ -1,0 +1,4 @@
+---
+netbox_backup_assets_root: "{{ role_path }}/../../../config/templates/stage-b"
+netbox_backup_install_root: /opt/netbox/backup
+netbox_backup_staging_root: /srv/netbox-backups/staging

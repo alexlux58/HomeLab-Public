@@ -20,7 +20,7 @@ the VM snapshot. No script prunes or overwrites an earlier archive.
 
 ## Known pitfalls
 
-**Prometheus does not listen on loopback.** `compose.yml` publishes
+**Prometheus does not listen on loopback.** `compose.yaml` publishes
 `${OBSERVABILITY_IP}:9090:9090`, so `http://127.0.0.1:9090` is refused inside the
 guest. `backup.sh` originally hardcoded the loopback URL and failed every night
 with `curl` exit 7, producing no archive between 2026-08-24 and 2026-09-06. It
@@ -38,7 +38,7 @@ root:root`, so a shell glob run as `labuser` expands to nothing and looks like a
 empty directory. Wrap the whole pipeline: `sudo -n bash -c '...'`.
 
 **The snapshot endpoint needs `--web.enable-admin-api`.** It is set in
-`compose.yml`. Removing it silently breaks layer 2.
+`compose.yaml`. Removing it silently breaks layer 2.
 
 ## Application backup proof
 
@@ -74,4 +74,3 @@ an isolated temporary directory. It never writes into live application paths.
    starting with an empty TSDB is often safer after corruption.
 6. Start Compose, validate targets/dashboards/logs, then deploy agents.
 7. Keep the old VM/archive untouched until acceptance passes.
-

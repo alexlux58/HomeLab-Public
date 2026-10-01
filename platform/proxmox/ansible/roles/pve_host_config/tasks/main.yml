@@ -1,0 +1,62 @@
+---
+- name: Load the single source of truth on the controller
+  ansible.builtin.set_fact:
+    pve_host_config_lab: "{{ lookup('ansible.builtin.file', pve_host_config_lab_file) | from_yaml }}"
+    pve_host_config_expected_confirmation: "L1 CONFIGURE {{ ansible_play_hosts_all | sort | join(' ') }}"
+
+- name: Require the L1 approval flag and its exact confirmation
+  ansible.builtin.assert:
+    that:
+      - pve_host_config_allow | bool
+      - pve_host_config_confirmation == pve_host_config_expected_confirmation
+    fail_msg: >-
+      L1 host configuration needs pve_host_config_allow=true and
+      pve_host_config_confirmation="{{ pve_host_config_expected_confirmation }}".
+    quiet: true
+
+- name: Identify this node in lab.yml
+  ansible.builtin.set_fact:
+    pve_host_config_node: >-
+      {{ (pve_host_config_lab.nodes | dict2items
+          | selectattr('value.inventory_name', 'equalto', inventory_hostname)
+          | map(attribute='key') | list) | first | default('') }}
+
+- name: Read the node's hostname
+  ansible.builtin.command:
+    argv: [hostname]
+  register: pve_host_config_hostname
+  changed_when: false
+
+- name: Require the host to be the lab.yml node it claims to be
+  ansible.builtin.assert:
+    that:
+      - pve_host_config_node | length > 0
+      - pve_host_config_hostname.stdout == pve_host_config_node
+    fail_msg: "{{ inventory_hostname }} is not the node lab.yml expects ({{ pve_host_config_node }})."
+    quiet: true
+
+- name: Read cluster quorum
+  ansible.builtin.command:
+    argv: [pvecm, status]
+  register: pve_host_config_quorum
+  changed_when: false
+
+- name: Require a quorate cluster before changing any job or guest setting
+  ansible.builtin.assert:
+    that:
+      - pve_host_config_quorum.stdout is search('Quorate:\\s+Yes')
+    fail_msg: "The cluster is not quorate. Do NOT work around this; investigate corosync first."
+    quiet: true
+
+- name: Reconcile scheduled backups (cluster-wide, once)
+  ansible.builtin.include_tasks: backup_jobs.yml
+  run_once: true
+
+- name: Reconcile onboot and startup order for guests on this node
+  ansible.builtin.include_tasks: guests.yml
+  loop: >-
+    {{ pve_host_config_lab.guests | dict2items
+       | selectattr('value.node', 'equalto', pve_host_config_node) | list }}
+  loop_control:
+    loop_var: pve_host_config_guest
+    label: "{{ pve_host_config_guest.value.vmid }} {{ pve_host_config_guest.key }}"

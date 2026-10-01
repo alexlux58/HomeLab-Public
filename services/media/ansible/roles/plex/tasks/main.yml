@@ -1,0 +1,60 @@
+---
+- name: Check that Plex Media Server is running
+  ansible.windows.win_powershell:
+    script: |
+      $p = Get-Process -Name 'Plex Media Server' -ErrorAction SilentlyContinue
+      $Ansible.Changed = $false
+      [bool]$p
+  register: plex_process
+
+- name: Require Plex to be running (workstation may be asleep; wake it first)
+  ansible.builtin.assert:
+    that:
+      - plex_process.output | first
+    fail_msg: "Plex Media Server is not running on {{ inventory_hostname }}."
+    quiet: true
+
+- name: Check that Plex answers locally (identity is not printed)
+  ansible.windows.win_uri:
+    url: "{{ plex_local_url }}/identity"
+    status_code: 200
+  no_log: true
+
+- name: Register the metadata backup task
+  when: plex_allow_backup_task | bool
+  block:
+    - name: Require the Plex backup approval and its exact confirmation
+      ansible.builtin.assert:
+        that:
+          - plex_backup_confirmation == ('PLEX BACKUP ' ~ inventory_hostname)
+        fail_msg: "Set plex_backup_confirmation='PLEX BACKUP {{ inventory_hostname }}'."
+        quiet: true
+
+    - name: Create the program directory
+      ansible.windows.win_file:
+        path: "{{ plex_backup_script_dest | win_dirname }}"
+        state: directory
+
+    - name: Install the backup script
+      ansible.windows.win_copy:
+        src: "{{ plex_backup_script_src }}"
+        dest: "{{ plex_backup_script_dest }}"
+
+    - name: Register the daily task for the desktop user (runs only while logged on)
+      ansible.windows.win_powershell:
+        parameters:
+          Name: "{{ plex_backup_task_name }}"
+          Script: "{{ plex_backup_script_dest }}"
+          Destination: "{{ plex_backup_destination }}"
+          At: "{{ plex_backup_time }}"
+        script: |
+          param($Name, $Script, $Destination, $At)
+          $Ansible.Changed = $false
+          if (-not (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue)) {
+            $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
+              -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$Script`" -Destination `"$Destination`""
+            $trigger = New-ScheduledTaskTrigger -Daily -At $At
+            $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable
+            Register-ScheduledTask -TaskName $Name -Action $action -Trigger $trigger -Settings $settings | Out-Null
+            $Ansible.Changed = $true
+          }

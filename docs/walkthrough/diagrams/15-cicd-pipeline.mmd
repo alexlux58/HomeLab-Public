@@ -1,0 +1,8 @@
+flowchart LR
+  pr(["Pull request or push"])
+  ci["GitHub-hosted checks<br/>components, contracts, gitleaks,<br/>actionlint, zizmor, docs"]
+  review{"Operator review"}
+  local["Local devcontainer<br/>plan and gated make stage"]
+  lab["Lab"]
+  pr --> ci --> review
+  review -- "operator acts locally" --> local --> lab

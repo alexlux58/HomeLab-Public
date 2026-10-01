@@ -1,0 +1,92 @@
+# Codex execpolicy rules for the Home Lab monorepo (Starlark).
+# Mirrors AGENTS.md "Forbidden commands". Loaded only for a trusted project.
+# Codex matches exact token prefixes, so broad `prompt` rules cover forms such
+# as `terraform -chdir=<dir> apply` that a `forbidden` prefix cannot see.
+# tests/test_codex_rules.py evaluates this file; keep it plain prefix_rule calls.
+
+prefix_rule(
+    pattern = ["terraform", ["apply", "destroy", "import"]],
+    decision = "forbidden",
+    justification = "Live infrastructure changes are operator-only (AGENTS.md).",
+    match = ["terraform apply", "terraform destroy -auto-approve", "terraform import x y"],
+    not_match = ["terraform fmt -check", "terraform validate"],
+)
+
+prefix_rule(
+    pattern = ["tofu", ["apply", "destroy", "import"]],
+    decision = "forbidden",
+    justification = "Live infrastructure changes are operator-only (AGENTS.md).",
+    match = ["tofu apply", "tofu destroy", "tofu import x y"],
+    not_match = ["tofu fmt -check", "tofu validate"],
+)
+
+prefix_rule(
+    pattern = [["terraform", "tofu"]],
+    decision = "prompt",
+    justification = "Only fmt and validate after init -backend=false are offline; confirm anything else.",
+    match = ["terraform -chdir=x apply", "tofu plan"],
+    not_match = ["make check"],
+)
+
+prefix_rule(
+    pattern = ["bao", "operator"],
+    decision = "forbidden",
+    justification = "OpenBao init, unseal and rekey are an attended ceremony.",
+    match = ["bao operator init", "bao operator unseal"],
+    not_match = ["bao status"],
+)
+
+prefix_rule(
+    pattern = ["pvecm"],
+    decision = "forbidden",
+    justification = "Cluster membership and quorum changes are manual operator steps.",
+    match = ["pvecm add 192.168.0.11", "pvecm expected 1"],
+)
+
+prefix_rule(
+    pattern = [["qm", "pct"], "destroy"],
+    decision = "forbidden",
+    justification = "Guest deletion is never automated.",
+    match = ["qm destroy 300", "pct destroy 101"],
+    not_match = ["qm list", "qm config 300"],
+)
+
+prefix_rule(
+    pattern = ["rm", ["-rf", "-fr", "-Rf", "-rF"]],
+    decision = "forbidden",
+    justification = "rm -rf is forbidden in this repository.",
+    match = ["rm -rf build", "rm -fr build"],
+    not_match = ["rm file.txt", "rm -r build"],
+)
+
+prefix_rule(
+    pattern = [["ssh", "scp", "rsync"]],
+    decision = "prompt",
+    justification = "Remote access reaches live hosts; offline work needs none.",
+    match = ["ssh pve1 uptime", "scp a pve1:/tmp/"],
+)
+
+prefix_rule(
+    pattern = ["ansible-playbook"],
+    decision = "prompt",
+    justification = "Only --syntax-check is offline; live runs need operator approval.",
+    match = ["ansible-playbook -i inventory/hosts.yml site.yml"],
+)
+
+# Prefix rules cover common dangerous spellings. The installed pre-push
+# hook validates the actual origin URL, ref updates and invoking git argv;
+# prefix matching alone cannot inspect arbitrary trailing refspecs.
+prefix_rule(
+    pattern = ["git", "push", ["--force", "--force-with-lease", "-f", "--delete", "-d", "--mirror", "--no-verify", "upstream", "backup", "other", "https://github.com/other/repo.git"]],
+    decision = "forbidden",
+    justification = "D6 permits only an ordinary push to this checkout's approved origin.",
+    match = ["git push --force origin main", "git push upstream main"],
+    not_match = ["git push origin main", "git status"],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", ["--force", "--force-with-lease", "-f", "--delete", "-d", "--mirror", "--no-verify", "+main", ":main"]],
+    decision = "forbidden",
+    justification = "Force, deletion, mirror and hook bypass are forbidden, including on origin.",
+    match = ["git push origin --force main", "git push origin +main", "git push origin :main"],
+    not_match = ["git push origin main"],
+)

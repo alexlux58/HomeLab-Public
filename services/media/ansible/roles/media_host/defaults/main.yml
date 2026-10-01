@@ -1,0 +1,29 @@
+---
+# Expected confirmation: "MEDIA HOST media-vm"
+media_host_allow: false
+media_host_confirmation: ""
+
+media_host_uid: 1000
+media_host_gid: 1000
+media_host_packages: [docker.io, docker-compose-v2, cifs-utils, python3-docker]
+media_host_nas_address: 192.168.0.20
+media_host_mounts:
+  - {share: Media, path: /mnt/media}
+  - {share: media-backups, path: /mnt/media-backups}
+# Operator-installed, root-owned, mode 0600: username=/password= for the
+# dedicated NAS account. Never generated or read by automation.
+media_host_cifs_credentials: /etc/media/secrets/cifs.cred
+# nofail + automount: a sleeping NAS or missing share never blocks boot.
+media_host_mount_options:
+  - file_mode=0664
+  - dir_mode=0775
+  - vers=3.0
+  - iocharset=utf8
+  - _netdev
+  - nofail
+  - x-systemd.automount
+media_host_service_dirs:
+  - /srv/radarr/config
+  - /srv/prowlarr/config
+  - /srv/recyclarr/config
+  - /srv/alloy/data

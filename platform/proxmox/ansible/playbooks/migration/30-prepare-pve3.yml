@@ -1,0 +1,175 @@
+---
+# Stage 5 — prepare .13 as an empty PVE 9 cluster member.
+#
+#   make prepare-pve3                                  # emit the clean-install checklist and STOP
+#   make prepare-pve3 EXTRA="-e pve3_reinstalled=true -e pve3_fingerprint_verified=true \
+#                           -e allow_configure_nfs_storage=true"   # validate after the reinstall
+#
+# The ISO installation itself is a MANUAL step performed at the console. It is
+# never automated through the same SSH session that is about to be destroyed.
+- name: Emit the clean-install checklist for .13
+  hosts: localhost
+  gather_facts: true
+  connection: local
+  become: false
+  any_errors_fatal: true
+  tags: [stage5, prepare222]
+
+  tasks:
+    - name: Render the manual clean-install checklist
+      ansible.builtin.copy:
+        dest: "{{ artifacts_dir }}/pve3-clean-install-checklist.md"
+        mode: "0644"
+        content: |
+          # Clean install checklist — {{ hostvars['pve'].expected_hostname }} / 192.168.0.13
+
+          Generated {{ ansible_date_time.iso8601 }}. **Nothing is automated here.**
+
+          .13 is a rebuild-later node. Its guests (100 NIXOS, 101 Kali,
+          102 ProxmoxDatacenterManager) are NOT backed up and will be destroyed.
+          Their software and resource shapes are recorded in
+          `docs/rebuild-catalog.md`.
+
+          ## Before you start
+
+          - [ ] Confirm `artifacts/discovery.json` shows no guest on .13 you actually want.
+          - [ ] Confirm both .11 backup generations exist and verify (`make verify-backups`).
+          - [ ] Have physical or IPMI/KVM console access to .13.
+          - [ ] Download the **Proxmox VE {{ target_pve_release }}** ISO from
+                https://www.proxmox.com/en/downloads and verify its SHA-256 checksum.
+
+          ## Install
+
+          - [ ] Boot the installer.
+          - [ ] Filesystem: match what .11 and .12 use so the storage IDs line up.
+          - [ ] Hostname: `{{ hostvars['pve'].expected_hostname }}`
+          - [ ] IP: `192.168.0.13/24`, gateway and DNS as on the other nodes.
+          - [ ] Set a root password you control. It is never given to this automation.
+
+          ## Immediately after the first boot: fix the package repository
+
+          The Proxmox installer enables the **enterprise** repository, which needs a
+          paid subscription and returns HTTP 401 without one. Verified on your hosts:
+          enterprise = 401, no-subscription = 200. Until this is changed the node
+          receives no Proxmox updates at all.
+
+          - [ ] In the web UI: **pve → Updates → Repositories**
+                - select `pve-enterprise` → **Disable**
+                - select the Ceph `enterprise` line → **Disable** (you do not use Ceph)
+                - **Add** → `No-Subscription` → Add
+          - [ ] Then: **Updates → Refresh**, and apply any pending updates so this node
+                matches the others exactly.
+
+          ## Immediately after the first boot: SSH
+
+          - [ ] At the **console** (not over SSH), print the new host fingerprint:
+
+                ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
+
+          - [ ] Write the value down. The previous one was
+                `{{ hostvars['pve'].expected_host_fingerprint }}` and it WILL change.
+          - [ ] From the controller, remove the stale entries — and only those:
+
+                ssh-keygen -R 192.168.0.13
+                ssh-keygen -R pve3
+
+          - [ ] Connect once interactively and compare the fingerprint character by
+                character before typing `yes`:
+
+                ssh -o IdentitiesOnly=yes -i ~/.ssh/{{ ssh_key_name }} root@192.168.0.13
+
+          - [ ] Reinstall the EXISTING public key (no new key is ever generated):
+
+                ssh root@192.168.0.13 \
+                  'umask 077; mkdir -p /root/.ssh; cat >> /root/.ssh/authorized_keys; \
+                   sort -u -o /root/.ssh/authorized_keys /root/.ssh/authorized_keys' \
+                  < ~/.ssh/{{ ssh_key_name }}.pub
+
+          - [ ] Update `expected_host_fingerprint` for host `pve` in
+                `../../inventory/hosts.yml` to the new value.
+          - [ ] Prove key auth works:
+
+                ssh pve3 'hostname; pveversion'
+                ansible -i ../../inventory/hosts.yml pve -m ansible.builtin.ping
+
+          ## Then re-run this playbook
+
+          ```bash
+          make prepare-pve3 EXTRA="-e pve3_reinstalled=true \
+            -e pve3_fingerprint_verified=true \
+            -e allow_configure_nfs_storage=true"
+          ```
+
+    - name: Point the operator at the checklist
+      ansible.builtin.debug:
+        msg:
+          - "Checklist written: artifacts/pve3-clean-install-checklist.md"
+          - "pve3_reinstalled={{ pve3_reinstalled }} — post-install validation {{ 'WILL' if pve3_reinstalled | bool else 'will NOT' }} run."
+
+- name: Validate .13 after its clean installation
+  hosts: pve
+  gather_facts: true
+  serial: 1
+  any_errors_fatal: true
+  tags: [stage5, prepare222]
+
+  pre_tasks:
+    - name: Stop unless the operator confirms the reinstall is done
+      ansible.builtin.meta: end_play
+      when: not (pve3_reinstalled | bool)
+
+    - name: Require the fingerprint to have been verified at the console
+      ansible.builtin.assert:
+        that:
+          - pve3_fingerprint_verified | bool
+        fail_msg: |
+          The SSH host key of a freshly installed node is new by definition and
+          must be verified out-of-band. Print it at the console with
+            ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
+          compare it, update ../../inventory/hosts.yml, then re-run with
+            -e pve3_fingerprint_verified=true
+
+  roles:
+    - role: ssh_validation
+
+    - role: synology_nfs
+      synology_nfs_action: preflight
+
+    - role: synology_nfs
+      synology_nfs_action: configure
+      when: allow_configure_nfs_storage | bool
+
+  post_tasks:
+    - name: Confirm the installed release matches the target
+      ansible.builtin.command: pveversion
+      changed_when: false
+      register: prepare222_version
+
+    - name: Assert .13 runs the approved target release
+      ansible.builtin.assert:
+        that:
+          - prepare222_version.stdout is search('pve-manager/' ~ target_pve_release)
+        fail_msg: >-
+          .13 reports {{ prepare222_version.stdout }} but the cluster target is
+          Proxmox VE {{ target_pve_release }}. Install or update to the target release.
+
+    - name: Confirm the node has no guests
+      ansible.builtin.shell: |
+        set -o pipefail
+        find /etc/pve/qemu-server /etc/pve/lxc -maxdepth 1 -type f -name '*.conf' -print | wc -l
+      args:
+        executable: /bin/bash
+      changed_when: false
+      register: prepare222_guests
+
+    - name: Assert .13 is empty
+      ansible.builtin.assert:
+        that:
+          - (prepare222_guests.stdout | trim | int) == 0
+        fail_msg: ".13 still has guests. It must be empty before it can join a cluster."
+
+    - name: Report readiness
+      ansible.builtin.debug:
+        msg:
+          - ".13 is clean-installed on {{ prepare222_version.stdout }}, empty, and can see the NAS."
+          - "Next: upgrade .11, create the cluster, then join .13 empty."

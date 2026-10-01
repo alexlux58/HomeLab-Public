@@ -1,0 +1,19 @@
+flowchart LR
+  subgraph vm310["VM 310 observability"]
+    prom["Prometheus (15 d, 8 GiB)"]
+    am["Alertmanager"]
+    graf["Grafana"]
+    loki["Loki (7 d)"]
+    alloy["Alloy"]
+    pvex["PVE exporter"]
+    snmp["SNMP exporter"]
+    bb["Blackbox exporter"]
+  end
+  pve["Proxmox API"] --> pvex --> prom
+  nas["Synology SNMPv3"] --> snmp --> prom
+  sites["HTTPS sites, DNS, ICMP"] --> bb --> prom
+  vm300["VM 300 node/cAdvisor"] --> prom
+  media["media-vm Alloy<br/>(push; absent while asleep)"] -- "remote_write" --> prom
+  logs["Docker and journal logs"] --> alloy --> loki
+  prom --> am -- "SMTP 587 STARTTLS" --> mail(["alert mailbox"])
+  prom & loki --> graf

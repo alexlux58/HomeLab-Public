@@ -1,0 +1,22 @@
+---
+- name: Configure application-aware NetBox backups
+  hosts: netbox_guests
+  gather_facts: false
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  # Phase 3: every live stage is gated. Extra vars override these defaults.
+  vars:
+    netbox_allow_backup_config: false
+    netbox_backup_config_confirmation: ""
+  pre_tasks:
+    - name: Require this stage's approval and its exact confirmation
+      ansible.builtin.assert:
+        that:
+          - netbox_allow_backup_config | bool
+          - netbox_backup_config_confirmation == ('CONFIGURE BACKUPS ON ' ~ inventory_hostname)
+        fail_msg: "Set netbox_allow_backup_config=true and netbox_backup_config_confirmation to the exact string in this playbook."
+        quiet: true
+
+  roles:
+    - role: netbox_backup

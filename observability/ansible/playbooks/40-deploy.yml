@@ -1,0 +1,25 @@
+---
+- name: Deploy central homelab observability stack
+  hosts: observability_servers
+  become: true
+  gather_facts: true
+  serial: 1
+  any_errors_fatal: true
+  # Phase 3: every live stage is gated. Extra vars override these defaults.
+  vars:
+    observability_allow_deploy: false
+    observability_deploy_confirmation: ""
+  pre_tasks:
+    - name: Require this stage's approval and its exact confirmation
+      ansible.builtin.assert:
+        that:
+          - observability_allow_deploy | bool
+          - observability_deploy_confirmation == ('DEPLOY OBSERVABILITY STACK ON ' ~ inventory_hostname)
+        fail_msg: "Set observability_allow_deploy=true and observability_deploy_confirmation to the exact string in this playbook."
+        quiet: true
+  roles:
+    - role: common
+    - role: docker
+    - role: firewall
+    - role: observability_stack
+    - role: backup

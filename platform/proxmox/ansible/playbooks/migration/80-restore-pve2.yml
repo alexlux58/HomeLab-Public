@@ -1,0 +1,111 @@
+---
+# Stage 10 — restore the .12 guests onto the rebuilt node.
+#
+#   make build-restore-plan          # generate the plan
+#   less artifacts/restore-plan.md   # REVIEW IT
+#   make restore-pve2 EXTRA="-e allow_restore_pve2=true \
+#     -e restore_confirmation_pve2='RESTORE pve2 GUESTS FROM VERIFIED BACKUP'"
+#
+# Guests are restored STOPPED. Starting them is stage 10c.
+- name: Regenerate and render the restore plan
+  hosts: localhost
+  gather_facts: true
+  connection: local
+  become: false
+  any_errors_fatal: true
+  tags: [stage10, restore]
+
+  tasks:
+    - name: Build the restore plan from the verified manifest
+      ansible.builtin.command:
+        argv:
+          - "{{ project_root }}/.venv/bin/python"
+          - "{{ scripts_dir }}/build_restore_plan.py"
+          - --discovery
+          - "{{ artifacts_dir }}/discovery.json"
+          - --collisions
+          - "{{ artifacts_dir }}/vmid-collisions.json"
+          - --manifest
+          - "{{ artifacts_dir }}/backup-manifest.json"
+          - --source-host
+          - pve2
+          - --target-node
+          - pve2
+          - --generation
+          - final
+          - --disposable-host
+          - pve
+          - --default-storage
+          - "{{ restore_default_storage }}"
+          - --isolate
+          - "{{ isolated_guests[0].vmid }}={{ isolated_guests[0].mode }}"
+          - --out-json
+          - "{{ artifacts_dir }}/restore-plan.json"
+      changed_when: true
+
+    - name: Load the plan
+      ansible.builtin.set_fact:
+        restore_plan: "{{ lookup('file', artifacts_dir ~ '/restore-plan.json') | from_json }}"
+
+    - name: Render the reviewable restore plan
+      ansible.builtin.template:
+        src: "{{ project_root }}/templates/restore-plan.md.j2"
+        dest: "{{ artifacts_dir }}/restore-plan.md"
+        mode: "0644"
+
+    - name: Show the VMID mapping that will be applied
+      ansible.builtin.debug:
+        msg: >-
+          {{ restore_plan.entries | map(attribute='original_vmid') | zip(
+             restore_plan.entries | map(attribute='target_vmid'),
+             restore_plan.entries | map(attribute='name')) | list }}
+
+    - name: Require explicit approval of the plan
+      ansible.builtin.assert:
+        that:
+          - allow_restore_pve2 | bool
+          - restore_confirmation_pve2 == restore_confirmation_pve2_required
+        fail_msg: |
+          The plan has been written to artifacts/restore-plan.md. Read it, then
+          re-run with BOTH of:
+            -e allow_restore_pve2=true
+            -e restore_confirmation_pve2='{{ restore_confirmation_pve2_required }}'
+
+- name: Restore the guests onto pve2
+  hosts: pve2
+  gather_facts: true
+  serial: 1
+  any_errors_fatal: true
+  tags: [stage10, restore]
+
+  pre_tasks:
+    - name: Assert the node is part of the cluster and quorate
+      ansible.builtin.command: pvecm status
+      changed_when: false
+      register: restore180_cluster
+
+    - name: Verify quorum before restoring
+      ansible.builtin.assert:
+        that:
+          - restore180_cluster.stdout is search('Quorate:\\s+Yes')
+        fail_msg: "pve2 is not quorate; do not restore into a broken cluster."
+
+  roles:
+    - role: pve_restore
+
+  post_tasks:
+    - name: List everything now registered on the node
+      ansible.builtin.command: qm list
+      changed_when: false
+      register: restore180_list
+
+    - name: Show the result
+      ansible.builtin.debug:
+        msg:
+          - "{{ restore180_list.stdout_lines }}"
+          - ""
+          - "Every guest is STOPPED. Start them with a separate approval:"
+          - "  make start-restored-guests EXTRA=\"-e allow_start_restored_guests=true \\"
+          - "    -e start_restored_confirmation='{{ start_restored_confirmation_required }}'\""
+          - ""
+          - "metasploitable2 has link_down=1 on every NIC. Keep it that way."

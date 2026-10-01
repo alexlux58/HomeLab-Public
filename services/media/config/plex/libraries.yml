@@ -1,0 +1,18 @@
+---
+# Declared Plex configuration (L5). Applied by scripts/plex_libraries.py:
+# libraries are added when missing; settings are only reported.
+# Paths are UNC paths on the NAS Media share (read-only plex-reader account,
+# signed in by the operator on workstation; never stored here).
+server: workstation
+libraries:
+  - name: Movies
+    type: movie
+    agent: tv.plex.agents.movie
+    scanner: Plex Movie
+    language: en-US
+    locations:
+      - \\192.168.0.20\Media\Movies
+# Expected values; drift is reported, never changed by the script.
+settings:
+  PublishServerOnPlexOnlineKey: false   # remote access stays off
+  DlnaEnabled: false

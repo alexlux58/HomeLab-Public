@@ -1,0 +1,12 @@
+flowchart TB
+  op(["Operator"])
+  op -- "make -C component stage<br/>EXTRA_JSON flag + confirmation" --> make["Make target<br/>(exactly one stage)"]
+  make --> pb["Playbook<br/>serial: 1, any_errors_fatal"]
+  pb --> pre["pre_tasks / first role task:<br/>assert allow_flag | bool<br/>and confirmation == expected"]
+  pre -- "mismatch" --> stop(["Stop: nothing changed"])
+  pre -- "match" --> role["Role tasks"]
+  role --> destructive{"Destructive task?"}
+  destructive -- "yes" --> tags["Only with --tags all,destructive<br/>(tagged never + destructive)"]
+  destructive -- "no" --> task["Task runs"]
+  tags --> task
+  task --> verify["Stage verify command"]

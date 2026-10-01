@@ -1,0 +1,43 @@
+---
+# Read-only: confirms the controller can reach media-vm and records its
+# OS, Docker and mount state. Changes nothing.
+- name: Media guest preflight
+  hosts: media_guests
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  tasks:
+    - name: Require the operator-supplied connection inputs
+      ansible.builtin.assert:
+        that:
+          - media_guest_ssh_port is defined
+          - media_guest_admin_user is defined
+        fail_msg: >-
+          Set media_guest_ssh_port and media_guest_admin_user in
+          inventory/host_vars/media-vm.yml (git-ignored) first.
+        quiet: true
+
+    - name: Gather minimal facts
+      ansible.builtin.setup:
+        gather_subset: [min, mounts]
+
+    - name: Require Ubuntu 24.04
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == 'Ubuntu'
+          - ansible_facts.distribution_version == '24.04'
+        quiet: true
+
+    - name: Read the Docker version
+      ansible.builtin.command:
+        argv: [docker, version, --format, "{{ '{{.Server.Version}}' }}"]
+      register: media_preflight_docker
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Report the guest state
+      ansible.builtin.debug:
+        msg:
+          docker: "{{ media_preflight_docker.stdout | default('absent') }}"
+          media_mounted: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', '/mnt/media') | list | length > 0 }}"

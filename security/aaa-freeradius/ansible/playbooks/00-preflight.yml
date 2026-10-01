@@ -1,0 +1,49 @@
+---
+- name: Inspect one AAA host without reading authentication secrets
+  hosts: aaa_nodes
+  gather_facts: false
+  serial: 1
+  any_errors_fatal: true
+  tasks:
+    - name: Require a single explicitly selected host
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts_all | length == 1
+        fail_msg: Run with --limit naming exactly one AAA node.
+
+    - name: Read operating system identity
+      ansible.builtin.command: cat /etc/os-release
+      register: aaa_os
+      changed_when: false
+
+    - name: Read machine architecture
+      ansible.builtin.command: uname -m
+      register: aaa_architecture
+      changed_when: false
+
+    - name: Inspect installed packages without reading their configuration
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Inspect service state without reading their configuration
+      ansible.builtin.service_facts:
+
+    - name: Read listening socket addresses without process arguments
+      ansible.builtin.command: ss -lntu
+      register: aaa_listeners
+      changed_when: false
+
+    - name: Report only the relevant package and service metadata
+      ansible.builtin.debug:
+        msg:
+          os: "{{ aaa_os.stdout_lines }}"
+          architecture: "{{ aaa_architecture.stdout }}"
+          packages: >-
+            {{ ansible_facts.packages | dict2items
+               | selectattr('key', 'match', '^(freeradius.*|nginx.*|slapd|wireguard-tools|openvpn|strongswan.*)$')
+               | items2dict }}
+          services: >-
+            {{ ansible_facts.services | dict2items
+               | selectattr('key', 'match', '^(freeradius|nginx|slapd|wg-quick|openvpn|strongswan).*')
+               | items2dict }}
+          listeners: "{{ aaa_listeners.stdout_lines }}"

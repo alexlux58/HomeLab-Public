@@ -1,0 +1,15 @@
+flowchart TB
+  task(["Agent receives a task"])
+  agents["AGENTS.md (root + component)<br/>rules, reading order"]
+  ctx["MEMORY.md, environment.md,<br/>lessons-learned.md"]
+  skill["Skill in .agents/skills<br/>(Claude via .claude/skills links)"]
+  edit["Edit files"]
+  hook{"Claude PreToolUse guard /<br/>Codex execpolicy rules"}
+  blocked(["Blocked: ask the operator"])
+  tests["make check + tests/ contracts<br/>+ pre-commit (gitleaks, constructs)"]
+  review["safety-reviewer prompt"]
+  commit(["Commit; checked push to approved origin"])
+  task --> agents --> ctx --> skill --> edit
+  edit --> hook
+  hook -- "forbidden command or secret read" --> blocked
+  hook -- "allowed" --> tests --> review --> commit

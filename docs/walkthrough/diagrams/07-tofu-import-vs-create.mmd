@@ -1,0 +1,17 @@
+flowchart LR
+  subgraph importfirst["Import-first (live guests exist)"]
+    hg["homelab-guests root<br/>VMs 300, 310"]
+    imp["import blocks adopt existing VMs"]
+    ign["ignore_changes: disks, EFI, cloud-init"]
+    hg --> imp --> ign
+  end
+  subgraph createmode["Create-mode"]
+    bao["secrets-openbao root<br/>VMs 320-322 (live)"]
+    nb["netbox root<br/>VM 330 (live)"]
+    rb["rebuild-guests root<br/>empty by default"]
+  end
+  gate{"rebuild_guests + 'REBUILD names FROM ZERO'"}
+  rb --> gate --> vms["New VMs: protected, off,<br/>prevent_destroy"]
+  all["Every root: no apply/destroy target,<br/>purge_on_destroy = false,<br/>delete_unreferenced_disks_on_destroy = false"]
+  importfirst -.- all
+  createmode -.- all

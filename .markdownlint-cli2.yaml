@@ -1,0 +1,28 @@
+# markdownlint for the private monorepo (ci.yml, make docs-check).
+# Rules are relaxed only where the house style differs on purpose; each
+# disabled rule says why.
+config:
+  default: true
+  MD013: false          # prose is wrapped by hand; tables and URLs run long
+  MD033: false          # the generated runbook uses HTML comment markers
+  MD041: false          # plan records start with front matter or a title line
+  MD024:
+    siblings_only: true # repeated section names under different parents are fine
+  MD060: false          # compact tables: pipes are not padded to align
+globs:
+  - "**/*.md"
+ignores:
+  - "public/**"
+  - "**/.venv/**"
+  - "**/.ansible/**"
+  - "**/collections/**"
+  - "**/node_modules/**"
+  - "docs/reference/legacy/**"
+  - "docs/walkthrough/legacy/**"
+  - "services/media/docs/legacy/**"
+  # Walkthrough build output (make docs), git-ignored.
+  - "docs/walkthrough/build/**"
+  - "docs/walkthrough/dist/**"
+  # Being written by a concurrent session (2026-09-30); lint it once it
+  # settles (MEMORY.md Known gaps).
+  - "services/music-library/**"

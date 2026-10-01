@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="generator" content="pandoc">
+<meta name="author" content="$author$">
+<meta name="description" content="$subtitle$">
+<title>$pagetitle$</title>
+$for(css)$
+<link rel="stylesheet" href="$css$">
+$endfor$
+</head>
+<body>
+<section class="cover">
+<p class="cover-kicker">$kicker$</p>
+<p class="cover-title">$title$</p>
+<p class="cover-subtitle">$subtitle$</p>
+<table class="cover-meta">
+<tr><th>Commit</th><td>$commit$</td></tr>
+<tr><th>Commit date</th><td>$date$</td></tr>
+<tr><th>Paper</th><td>$paper$</td></tr>
+<tr><th>Links</th><td>$linkbase$</td></tr>
+</table>
+<p class="cover-audience">$audience$</p>
+</section>
+<nav id="TOC" class="toc">
+<h1 class="toc-title unnumbered">Contents</h1>
+$table-of-contents$
+</nav>
+<main>
+$body$
+</main>
+</body>
+</html>

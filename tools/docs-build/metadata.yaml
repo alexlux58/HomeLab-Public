@@ -1,0 +1,9 @@
+title: Home Lab Technical Walkthrough
+pagetitle: Home Lab Technical Walkthrough
+subtitle: How the three-node Proxmox lab, its services and its safety gates fit together
+kicker: labadmin / homelab
+author: Home Lab operator
+audience: >-
+  Written for an engineer who has never seen this lab. Every file mention is a
+  link, every code excerpt is pulled from the repository at build time, and the
+  build fails if an excerpt no longer matches its source.

@@ -1,0 +1,14 @@
+flowchart TB
+  npm["NPM on VM 300<br/>bao.lab.example.com"]
+  vip["Keepalived VIP 192.168.0.40<br/>HAProxy HTTP :8200 to TLS backends"]
+  npm --> vip
+  subgraph raft["Raft cluster (3 voters, tolerates 1 failure)"]
+    b1["bao-1 VM 320<br/>pve1 192.168.0.41"]
+    b2["bao-2 VM 321<br/>pve2 192.168.0.42"]
+    b3["bao-3 VM 322<br/>pve3 192.168.0.43"]
+  end
+  vip --> b1 & b2 & b3
+  b1 <--> b2 <--> b3 <--> b1
+  snap["Encrypted Raft snapshots (after init)"]
+  raft --> snap --> nas[("Synology<br/>backup destination only")]
+  pki["Offline root CA<br/>(operator custody)"] -. "signs node TLS" .-> raft

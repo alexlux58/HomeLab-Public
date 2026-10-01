@@ -1,0 +1,71 @@
+---
+# Append-only copies of Radarr's and Prowlarr's own scheduled backups to the
+# NAS. Nothing is ever deleted: retention is a separately reviewed NAS policy.
+- name: Require the media-backup approval and its exact confirmation
+  ansible.builtin.assert:
+    that:
+      - media_backup_allow | bool
+      - media_backup_confirmation == ('MEDIA BACKUP ' ~ inventory_hostname)
+    fail_msg: "Set media_backup_allow=true and media_backup_confirmation='MEDIA BACKUP {{ inventory_hostname }}'."
+    quiet: true
+
+- name: Install the backup program
+  ansible.builtin.copy:
+    src: "{{ media_backup_script_src }}"
+    dest: /usr/local/sbin/arr-backup
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Build the backup command line
+  ansible.builtin.set_fact:
+    media_backup_exec: >-
+      /usr/local/sbin/arr-backup --dest {{ media_backup_destination }}
+      {% for app, path in media_backup_sources.items() %}--source {{ app }}={{ path }} {% endfor %}
+
+- name: Install the backup service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/arr-backup.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Append-only copy of *arr scheduled backups to the NAS
+      RequiresMountsFor={{ media_backup_destination | dirname }}
+
+      [Service]
+      Type=oneshot
+      ExecStart={{ media_backup_exec }}
+  become: true
+  notify: Reload systemd
+
+- name: Install the backup timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/arr-backup.timer
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Nightly *arr backup copy
+
+      [Timer]
+      OnCalendar={{ media_backup_on_calendar }}
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+  become: true
+  notify: Reload systemd
+
+- name: Flush handlers so the timer is known before enabling it
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the backup timer
+  ansible.builtin.systemd_service:
+    name: arr-backup.timer
+    enabled: true
+    state: started
+  become: true

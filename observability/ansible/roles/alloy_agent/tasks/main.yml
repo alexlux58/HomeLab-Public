@@ -25,8 +25,8 @@
 
 - name: Install Alloy agent Compose model
   ansible.builtin.template:
-    src: compose.yml.j2
-    dest: /opt/exporters/alloy/compose.yml
+    src: compose.yaml.j2
+    dest: /opt/exporters/alloy/compose.yaml
     owner: root
     group: root
     mode: "0644"

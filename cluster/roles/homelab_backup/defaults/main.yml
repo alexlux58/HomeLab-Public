@@ -1,4 +1,0 @@
----
-homelab_backup_assets_root: "{{ playbook_dir }}/../templates/homelab-services/stage-g"
-homelab_backup_install_root: /opt/homelab/backup
-homelab_backup_staging_root: /srv/homelab-backups/staging

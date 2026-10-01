@@ -1,0 +1,13 @@
+---
+# Ladder rung L1: reconcile Proxmox host configuration with inventory/lab.yml.
+# Both values must be supplied for any change; the expected confirmation
+# names every node in the play, sorted, e.g. "L1 CONFIGURE pve pve1 pve2".
+pve_host_config_allow: false
+pve_host_config_confirmation: ""
+
+pve_host_config_lab_file: "{{ role_path }}/../../../../../inventory/lab.yml"
+
+# vzdump defaults for jobs created from lab.yml. Proxmox never prunes here:
+# the storage is registered keep-all=1 and every job repeats it.
+pve_host_config_backup_compress: zstd
+pve_host_config_backup_prune: keep-all=1

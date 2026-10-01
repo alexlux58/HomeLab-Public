@@ -1,0 +1,12 @@
+flowchart LR
+  priv[("Private monorepo")]
+  snap["tools/publish/publish_snapshot.py<br/>policy selects paths, exclude private areas"]
+  san["sanitize-for-public.sh<br/>substitute real values with placeholders"]
+  chk["check-public.sh<br/>.public-denylist scan (full and staged)"]
+  pub[("public/ generated repo<br/>github.com/alexlux58/HomeLab-Public")]
+  op(["Review diff; checked push to public origin"])
+  priv --> snap --> san --> chk
+  chk -- "clean" --> pub --> op
+  chk -- "hit" --> stop(["Stop: fix the private source or the sanitiser"])
+  note["Monorepo paths and media;<br/>PDF/SVG scan; workflows withheld"]
+  snap -.- note

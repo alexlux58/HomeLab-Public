@@ -1,0 +1,22 @@
+---
+- name: Configure the Home Lab services guest base
+  hosts: homelab_service_guests
+  gather_facts: true
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  # Phase 3: every live stage is gated. Extra vars override these defaults.
+  vars:
+    homelab_allow_guest_config: false
+    homelab_guest_config_confirmation: ""
+  pre_tasks:
+    - name: Require this stage's approval and its exact confirmation
+      ansible.builtin.assert:
+        that:
+          - homelab_allow_guest_config | bool
+          - homelab_guest_config_confirmation == ('CONFIGURE GUEST ' ~ inventory_hostname)
+        fail_msg: "Set homelab_allow_guest_config=true and homelab_guest_config_confirmation to the exact string in this playbook."
+        quiet: true
+
+  roles:
+    - role: homelab_guest_base

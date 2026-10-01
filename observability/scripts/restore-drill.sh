@@ -40,7 +40,7 @@ tar --zstd -C "${work_dir}" -xpf "${archive}"
 
 test "$(sqlite3 "${work_dir}/grafana.db" 'PRAGMA integrity_check;')" = "ok"
 test -d "${work_dir}/prometheus-snapshot"
-test -f "${work_dir}/compose.yml"
+test -f "${work_dir}/compose.yaml"
 test -d "${work_dir}/config"
 
 echo "PASS: isolated validation completed without touching live data"

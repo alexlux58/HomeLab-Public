@@ -1,0 +1,13 @@
+---
+# Recyclarr (ADR-0004). --preview unless arr_stack_allow_recyclarr_sync and
+# arr_stack_recyclarr_confirmation "RECYCLARR SYNC media-vm" are supplied.
+- name: Sync Radarr quality profiles and custom formats
+  hosts: media_guests
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  tasks:
+    - name: Run Recyclarr through the arr_stack role
+      ansible.builtin.include_role:
+        name: arr_stack
+        tasks_from: recyclarr

@@ -1,0 +1,19 @@
+flowchart LR
+  user(["Operator request"])
+  radarr["Radarr (media-vm)"]
+  sonarr["Sonarr (not deployed)"]
+  prowlarr["Prowlarr<br/>Full Sync to Radarr,<br/>no indexer declared"]
+  idx["Indexer (operator's lawful-provider decision)"]
+  qbt["qBittorrent (Windows)<br/>M:\Downloads"]
+  nas[("NAS Media share<br/>Movies, Downloads")]
+  plex["Plex (Windows, native)<br/>UNC library path"]
+  client(["Playback client (LAN, Direct Play)"])
+  user --> radarr
+  user -.-> sonarr
+  radarr -- "search" --> prowlarr --> idx
+  radarr -- "10.0.2.2 via NAT" --> qbt
+  qbt -- "writes" --> nas
+  radarr -- "import: remote path map<br/>M:\Downloads to /media/Downloads" --> nas
+  nas -- "Movies" --> plex --> client
+  supp["Radarr-Supplemental App Control XMLs<br/>REJECTED path: Radarr natively on Windows<br/>would have weakened code integrity"]
+  supp -. "replaced by the VirtualBox guest" .-> radarr

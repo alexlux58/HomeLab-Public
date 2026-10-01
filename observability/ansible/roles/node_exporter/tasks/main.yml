@@ -17,8 +17,8 @@
 
 - name: Install bounded Node Exporter Compose model
   ansible.builtin.template:
-    src: compose.yml.j2
-    dest: /opt/exporters/node-exporter/compose.yml
+    src: compose.yaml.j2
+    dest: /opt/exporters/node-exporter/compose.yaml
     owner: root
     group: root
     mode: "0644"

@@ -1,0 +1,30 @@
+# D1 (ADR-0003): D:/homelab-state is mounted at /homelab-state.
+# OpenTofu only. Operator supplies TF_VAR_state_passphrase; never commit it.
+variable "state_passphrase" {
+  description = "Operator-held passphrase for this root's state and plans."
+  type        = string
+  sensitive   = true
+}
+
+terraform {
+  backend "local" {
+    path          = "/homelab-state/openbao/terraform.tfstate"
+    workspace_dir = "/homelab-state/openbao/workspaces"
+  }
+  encryption {
+    key_provider "pbkdf2" "state" {
+      passphrase = var.state_passphrase
+    }
+    method "aes_gcm" "state" {
+      keys = key_provider.pbkdf2.state
+    }
+    state {
+      method   = method.aes_gcm.state
+      enforced = true
+    }
+    plan {
+      method   = method.aes_gcm.state
+      enforced = true
+    }
+  }
+}

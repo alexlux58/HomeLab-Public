@@ -1,0 +1,11 @@
+flowchart LR
+  client(["Browser on the LAN"])
+  dns["Synology DNS 192.168.0.20<br/>*.lab.example.com to 192.168.0.30"]
+  npm["NPM on VM 300<br/>:443 wildcard TLS (DNS-01)"]
+  client -- "1 resolve (routing domain or manual resolver)" --> dns
+  client -- "2 HTTPS" --> npm
+  npm --> apps["Homepage, Uptime Kuma, IT-Tools,<br/>NetKnife, Linkding, PairDrop, Speedtest"]
+  npm --> graf["Grafana :3000, Prometheus :9090,<br/>Alertmanager :9093 on VM 310"]
+  npm --> nb["NetBox :8000 on VM 330"]
+  npm --> bao["OpenBao VIP 192.168.0.40:8200"]
+  admin(["Operator"]) -- "ssh -N npm-admin then 127.0.0.1:8181" --> npmadmin["NPM admin 127.0.0.1:81 (loopback only)"]

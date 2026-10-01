@@ -1,0 +1,114 @@
+---
+# L6: every stateful item — source, destination, schedule, restore and verify.
+# Restore drills run ONLY against an isolated VM or network (NIC link_down,
+# protected, a spare VMID such as 399). Nothing here deletes or prunes: every
+# destination is append-only and Proxmox storage is keep-all=1.
+# Tested by tests/test_coverage_matrix.py.
+items:
+  - id: proxmox-guests
+    what: Whole-guest vzdump archives for VMs 290, 300, 310, 320-322, 330
+    source: Proxmox guests
+    destination: synology-backup NFS, NAS Volume 1 (single disk — no redundancy)
+    schedule: inventory/lab.yml backup_jobs (daily; VM 290 weekly Sunday 01:00)
+    restore: "qmrestore <archive> <spare-vmid> --storage <local> --unique 1, every NIC link_down=1, then inspect"
+    verify: "zstdcat <archive> | vma verify - ; plus the archive's SHA-256 sidecar"
+    status: backup-restored
+  - id: proxmox-second-copy
+    what: Newest finalized vzdump archive per VMID, retained on workstation
+    source: One least-loaded Proxmox node mounting /mnt/pve/synology-backup/dump
+    destination: D:/homelab-backups on workstation (second on-site copy)
+    schedule: Daily 06:30 while logged in; catch up after missed start; never wake the PC
+    restore: Isolated qmrestore from the retained D copy; platform/proxmox/docs/backup-pull.md
+    verify: Client size and SHA-256 match NAS list before and after; NAS_UNCHANGED=true
+    status: declared
+  - id: vm300-app-data
+    what: NPM, Linkding, Speedtest Tracker SQLite; Uptime Kuma 2 MariaDB dump; Homepage/NPM config and certificates
+    source: /srv/homelab on VM 300 (services/homelab-services/config/templates/stage-g/backup.py)
+    destination: /srv/homelab-backups/staging on VM 300, carried off-guest by the 03:15 VM 300 vzdump
+    schedule: daily 02:45 (homelab-app-backup.timer)
+    restore: >-
+      On an isolated restore of VM 300: copy each SQLite file back under /srv/homelab/<app> with the app
+      stopped; for Uptime Kuma, gunzip -c uptime-kuma-all-databases.sql.gz | docker exec -i uptime-kuma
+      mariadb --socket=/app/data/run/mariadb.sock
+    verify: "sqlite3 <db> 'PRAGMA integrity_check' returns ok; gunzip -t the Kuma dump; uptime_kuma_monitors.py --dump reports no drift"
+    status: backup-restored
+  - id: vm310-observability
+    what: Prometheus TSDB snapshot, grafana.db, configuration
+    source: VM 310 (observability/scripts/backup.sh)
+    destination: /srv/observability/backups on VM 310, carried off-guest by the 04:15 VM 310 vzdump
+    schedule: daily 03:30 (homelab-observability-backup.timer)
+    restore: "make -C observability restore-drill ARCHIVE=/srv/observability/backups/<file> (never overwrites live data)"
+    verify: The restore drill's checks pass; homelab_observability_backup_last_success_timestamp_seconds is fresh
+    status: backup-restored
+  - id: vm330-netbox
+    what: NetBox PostgreSQL (plain SQL, serializable-deferrable) and media/reports/scripts
+    source: VM 330 (services/netbox/config/templates/stage-b/backup.py)
+    destination: /srv/netbox-backups/staging on VM 330, carried off-guest by the 04:45 VM 330 vzdump
+    schedule: daily 03:45 (netbox-app-backup.timer)
+    restore: "On an isolated VM 330 copy with an empty database: gunzip -c <set>/netbox.sql.gz | docker exec -i netbox-postgres psql -U netbox -d netbox"
+    verify: gunzip -t the dump; NetBox login works and object counts match the source
+    status: backup-restored
+  - id: openbao-raft
+    what: Encrypted OpenBao Raft snapshots
+    source: VMs 320-322 (openbao_backup role)
+    destination: Synology, encrypted with an age identity kept outside OpenBao and the NAS
+    schedule: configured only after initialization (make -C security/secrets-openbao configure-backup)
+    restore: security/secrets-openbao/docs/restore-runbook.md in a protected VM on an isolated bridge
+    verify: make -C security/secrets-openbao inspect-backup SNAPSHOT=<file> AGE_IDENTITY=<path>
+    status: manual
+  - id: arr-apps
+    what: Radarr and Prowlarr scheduled backup zips (database and config)
+    source: /srv/{radarr,prowlarr}/config/Backups/scheduled on media-vm
+    destination: NAS media-backups share (Volume 2) under arr/<app>/, with SHA-256 sidecars
+    schedule: daily 05:40 (arr-backup.timer); only while workstation is awake
+    restore: On an isolated guest, Radarr/Prowlarr System > Backup > Restore from the copied zip
+    verify: "sha256sum -c <zip>.sha256; python3 -m zipfile -t <zip>"
+    status: backup-restored
+  - id: plex-metadata
+    what: Plex database backups and Preferences.xml (holds the Plex token)
+    source: "%LOCALAPPDATA%\\Plex Media Server on workstation"
+    destination: NAS media-backups share under plex/ (operator-only ACL)
+    schedule: daily 04:30 while the desktop user is logged on (plex role, gated)
+    restore: "Stop Plex; copy the dated com.plexapp.plugins.library.db backup and Preferences-<date>.xml back; start Plex"
+    verify: python services/media/scripts/plex_libraries.py check, then plan shows no drift
+    status: backup-restored
+  - id: media-library
+    what: Movies and Downloads on the NAS Media share
+    source: NAS Volume 2
+    destination: none — protected by the RAID1 mirror only
+    schedule: not applicable
+    restore: "Not recreated from backup: rebuild the mirror from the healthy disk after replacing bay 3 (platform/nas/docs/synology-storage-health.md)"
+    verify: DSM Storage Manager shows the pool healthy; no Btrfs snapshots exist, and Disk 3 has failed SMART
+    status: manual
+  - id: qbittorrent-state
+    what: qBittorrent settings and torrent list on Windows
+    source: workstation
+    destination: none
+    schedule: not applicable
+    restore: Reinstall and set the Web UI port, credentials and M:\Downloads path by hand (L0/L7)
+    verify: Radarr's download-client test succeeds
+    status: manual
+  - id: media-guest-disk
+    what: media-vm system and data disks
+    source: VirtualBox on workstation (D:\VirtualBox VMs\media-vm)
+    destination: none — rebuilt, not restored
+    schedule: not applicable
+    restore: Rebuild with L0 (cloud-init template) + L4/L5 (Ansible) and restore arr-apps above
+    verify: make -C services/media preflight, then the L5 media verifications
+    status: declared
+  - id: tofu-state
+    what: Encrypted OpenTofu state for every root
+    source: D:/homelab-state/<root>/terraform.tfstate on workstation
+    destination: Encrypted timestamped copies on NAS proxmox-cluster-backups/opentofu-state/<root>
+    schedule: Operator copy after every verified state write; unique names retained forever
+    restore: Restore an encrypted copy to D:/homelab-state; otherwise re-adopt by import
+    verify: SHA-256 matches both copies; strict encryption plan shows no changes
+    status: manual
+  - id: nas-configuration
+    what: DSM configuration (shares, accounts, DNS zone, NFS exports)
+    source: DSM
+    destination: operator's encrypted storage (manual DSM configuration export)
+    schedule: after every DSM change
+    restore: DSM Control Panel > Update & Restore > Configuration Backup
+    verify: Shares, accounts and DNS records in lab.yml exist after restore
+    status: manual

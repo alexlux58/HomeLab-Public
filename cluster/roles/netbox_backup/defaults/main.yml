@@ -1,4 +1,0 @@
----
-netbox_backup_assets_root: "{{ playbook_dir }}/../templates/netbox/stage-b"
-netbox_backup_install_root: /opt/netbox/backup
-netbox_backup_staging_root: /srv/netbox-backups/staging

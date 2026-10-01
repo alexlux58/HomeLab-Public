@@ -1,0 +1,11 @@
+---
+# Read-only Plex checks on workstation; the metadata backup task is registered
+# only with plex_allow_backup_task and plex_backup_confirmation
+# "PLEX BACKUP workstation". Never touches the firewall or Plex settings.
+- name: Check Plex on workstation
+  hosts: media_windows
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  roles:
+    - role: plex

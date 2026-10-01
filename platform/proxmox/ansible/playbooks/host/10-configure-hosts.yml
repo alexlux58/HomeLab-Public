@@ -1,0 +1,17 @@
+---
+# Ladder rung L1: reconcile Proxmox host configuration with inventory/lab.yml.
+# Creates missing vzdump jobs (never edits or deletes one) and sets each
+# guest's deliberate onboot value and startup order. Repositories and NFS
+# storage are reconciled by their own stages (71-postinstall-pve2 pattern and
+# nas-preflight / synology_nfs), each with its own gate.
+#
+#   make -C platform/proxmox rebuild-l1-host-config \
+#     EXTRA_JSON='{"pve_host_config_allow":true,
+#                  "pve_host_config_confirmation":"L1 CONFIGURE pve pve1 pve2"}'
+- name: L1 host configuration from lab.yml
+  hosts: proxmox
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  roles:
+    - role: pve_host_config

@@ -1,0 +1,24 @@
+flowchart TB
+  internet(["Internet"])
+  router["the router 192.168.0.1<br/>DHCP, public DNS<br/>never authoritative for lab.example.com"]
+  internet --- router
+
+  subgraph lan["Flat LAN 192.168.0.0/24 (192.168.0.x is NOT a separate zone)"]
+    direction TB
+    subgraph cluster["Proxmox cluster 'homelab' (3 votes, HA off)"]
+      pve1["pve1 / pve1<br/>192.168.0.11<br/>Xeon, 31 GiB, NVMe"]
+      pve2["pve2 / pve2<br/>192.168.0.12<br/>i5, 11.5 GiB, HDD"]
+      pve3["pve3 / pve3<br/>192.168.0.13<br/>i5, 7.6 GiB, SSD"]
+    end
+    nas["Synology the NAS 'nas1'<br/>192.168.0.20 (SSH 2258)<br/>split-horizon DNS, NFS backups"]
+    tower["workstation (Windows 11 Home)<br/>192.168.0.70<br/>Plex, qBittorrent, VirtualBox"]
+    pivpn["PiVPN 192.168.0.60<br/>unmanaged"]
+    netgear["Netgear switch (model unverified)"]
+  end
+
+  router --- lan
+  pve1 -- "vmbr0" --- router
+  pve2 -- "vmbr0" --- router
+  pve3 -- "vmbr0" --- router
+  pve1 -- "vmbr1 enp2s0 (IDS, no carrier)" --- netgear
+  pve1 & pve2 & pve3 -- "NFSv4.1 synology-backup" --> nas

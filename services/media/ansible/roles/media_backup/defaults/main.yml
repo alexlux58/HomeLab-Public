@@ -1,0 +1,11 @@
+---
+# Expected confirmation: "MEDIA BACKUP media-vm"
+media_backup_allow: false
+media_backup_confirmation: ""
+
+media_backup_script_src: "{{ role_path }}/../../../scripts/arr_backup.py"
+media_backup_destination: /mnt/media-backups/arr
+media_backup_sources:
+  radarr: /srv/radarr/config/Backups/scheduled
+  prowlarr: /srv/prowlarr/config/Backups/scheduled
+media_backup_on_calendar: "*-*-* 05:40:00"

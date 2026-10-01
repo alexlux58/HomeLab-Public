@@ -1,0 +1,57 @@
+---
+# Create the vzdump jobs lab.yml declares that do not exist yet. Existing jobs
+# are never edited or deleted here; a mismatch is reported for the operator.
+- name: Read the cluster's scheduled backup jobs
+  ansible.builtin.command:
+    argv: [pvesh, get, /cluster/backup, --output-format, json]
+  register: pve_host_config_jobs_raw
+  changed_when: false
+
+- name: Index existing jobs by VMID
+  ansible.builtin.set_fact:
+    pve_host_config_jobs_by_vmid: >-
+      {{ dict(pve_host_config_jobs_raw.stdout | from_json
+              | selectattr('vmid', 'defined')
+              | map(attribute='vmid') | map('string')
+              | zip(pve_host_config_jobs_raw.stdout | from_json | selectattr('vmid', 'defined'))) }}
+
+- name: Report jobs whose schedule differs from lab.yml (no change is made)
+  ansible.builtin.debug:
+    msg: >-
+      VMID {{ item.vmid }}: schedule is
+      "{{ pve_host_config_jobs_by_vmid[item.vmid | string].schedule }}",
+      lab.yml says "{{ item.schedule }}". Reconcile by hand or update lab.yml.
+  loop: "{{ pve_host_config_lab.backup_jobs }}"
+  loop_control:
+    label: "{{ item.vmid }}"
+  when:
+    - (item.vmid | string) in pve_host_config_jobs_by_vmid
+    - pve_host_config_jobs_by_vmid[item.vmid | string].schedule != item.schedule
+
+- name: Create a missing backup job exactly as lab.yml declares it
+  ansible.builtin.command:
+    argv:
+      - pvesh
+      - create
+      - /cluster/backup
+      - --vmid
+      - "{{ item.vmid | string }}"
+      - --schedule
+      - "{{ item.schedule }}"
+      - --storage
+      - "{{ pve_host_config_lab.cluster.backup_storage }}"
+      - --mode
+      - "{{ item.mode }}"
+      - --compress
+      - "{{ pve_host_config_backup_compress }}"
+      - --prune-backups
+      - "{{ pve_host_config_backup_prune }}"
+      - --enabled
+      - "1"
+      - --comment
+      - "Home Lab L1 from inventory/lab.yml"
+  loop: "{{ pve_host_config_lab.backup_jobs }}"
+  loop_control:
+    label: "{{ item.vmid }} {{ item.schedule }}"
+  when: (item.vmid | string) not in pve_host_config_jobs_by_vmid
+  changed_when: true

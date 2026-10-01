@@ -1,0 +1,91 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Update PRs for every pin. Nothing auto-merges: update PR -> ci.yml -> gated local make stage.",
+  "extends": ["config:recommended", ":dependencyDashboard", "helpers:pinGitHubActionDigests"],
+  "automerge": false,
+  "platformAutomerge": false,
+  "prConcurrentLimit": 5,
+  "labels": ["dependencies"],
+  "ignorePaths": ["public/**", "**/.venv/**", "**/collections/**", "**/node_modules/**"],
+  "enabledManagers": [
+    "docker-compose",
+    "dockerfile",
+    "terraform",
+    "ansible-galaxy",
+    "pip_requirements",
+    "pep621",
+    "github-actions",
+    "custom.regex"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "OpenTofu pinned in the devcontainer and workflows",
+      "managerFilePatterns": ["/^\\.devcontainer/Dockerfile$/", "/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["OPENTOFU_VERSION=(?<currentValue>[0-9.]+)", "TOFU_VERSION: \"(?<currentValue>[0-9.]+)\""],
+      "depNameTemplate": "opentofu/opentofu",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "gitleaks pinned in the devcontainer and workflows",
+      "managerFilePatterns": ["/^\\.devcontainer/Dockerfile$/", "/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["GITLEAKS_VERSION=(?<currentValue>[0-9.]+)", "GITLEAKS_VERSION: \"(?<currentValue>[0-9.]+)\""],
+      "depNameTemplate": "gitleaks/gitleaks",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "trivy pinned in the workflows",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["TRIVY_VERSION: \"(?<currentValue>[0-9.]+)\""],
+      "depNameTemplate": "aquasecurity/trivy",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "actionlint pinned in the workflows",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["ACTIONLINT_VERSION: \"(?<currentValue>[0-9.]+)\""],
+      "depNameTemplate": "rhysd/actionlint",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "tflint pinned in the workflows",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["TFLINT_VERSION: \"(?<currentValue>v[0-9.]+)\""],
+      "depNameTemplate": "terraform-linters/tflint",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Pandoc pinned in the devcontainer",
+      "managerFilePatterns": ["/^\\.devcontainer/Dockerfile$/"],
+      "matchStrings": ["PANDOC_VERSION=(?<currentValue>[0-9.]+)"],
+      "depNameTemplate": "jgm/pandoc",
+      "datasourceTemplate": "github-releases"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Group GitHub Actions digest bumps",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "Providers change live infrastructure plans: one PR each, reviewed locally with OpenTofu",
+      "matchManagers": ["terraform"],
+      "addLabels": ["tofu"]
+    },
+    {
+      "description": "Compose images keep tag plus digest",
+      "matchManagers": ["docker-compose", "dockerfile"],
+      "pinDigests": true
+    }
+  ]
+}

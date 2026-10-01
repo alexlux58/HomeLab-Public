@@ -121,13 +121,13 @@ make setup                  # uses Python 3.12 for Ansible Core 2.19
 make install-hooks
 make lint
 make test
-docker compose --file docker/compose.yml --env-file docker/.env.example config --quiet
+docker compose --file docker/compose.yaml --env-file docker/.env.example config --quiet
 ```
 
 `make bootstrap` hardens only the existing guest. `make deploy` is not an
 aggregate bootstrap. It configures only the already installed central VM and
 intentionally fails until all three root-owned runtime secret files exist.
-Docker-host agents are a separate `deploy-agents.yml` stage.
+Docker-host agents are a separate `30-deploy-agents.yml` stage.
 Proxmox host agents and syslog forwarding remain a later, separately approved
 change; PVE Exporter provides cluster metrics without modifying the hypervisors.
 

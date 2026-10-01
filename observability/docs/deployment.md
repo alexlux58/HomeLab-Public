@@ -129,7 +129,7 @@ Review the three additional containers (Node Exporter 96 MiB, cAdvisor 224 MiB,
 Alloy 256 MiB) and then run only:
 
 ```bash
-.venv/bin/ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/deploy-agents.yml
+.venv/bin/ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/30-deploy-agents.yml
 ```
 
 VM 300 firewall rules admit 9100/8080 only from `192.168.0.31`; Alloy initiates

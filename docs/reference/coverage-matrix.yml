@@ -1,0 +1,118 @@
+---
+# Phase 3 acceptance: every row is declared (code in `evidence`),
+# backup-restored (a docs/reference/backup-matrix.yml item), or manual (a
+# ladder step in docs/runbooks/rebuild-ladder.yml). One owner per row.
+# tests/test_coverage_matrix.py enforces the shape and that nothing is left out.
+rows:
+  - {id: proxmox-second-copy, rung: L6, owner: backup_pull, status: declared, backup: proxmox-second-copy,
+     evidence: [platform/proxmox/ansible/roles/backup_pull/tasks/main.yml, platform/proxmox/scripts/backup-pull.ps1],
+     note: D3 approved; exact installation confirmation and live acceptance pending.}
+  # ---- L0 / L1 / L2: hardware, hosts, cluster -------------------------------
+  - {id: node-pve1, node: pve1, rung: L0, owner: answer-file builder, status: declared,
+     evidence: [platform/proxmox/scripts/build_answer_files.py, inventory/lab.yml]}
+  - {id: node-pve2, node: pve2, rung: L0, owner: answer-file builder, status: declared,
+     evidence: [platform/proxmox/scripts/build_answer_files.py, inventory/lab.yml]}
+  - {id: node-pve3, node: pve3, rung: L0, owner: answer-file builder, status: declared,
+     evidence: [platform/proxmox/scripts/build_answer_files.py, inventory/lab.yml]}
+  - {id: node-install-media, rung: L0, owner: operator, status: manual, runbook_step: l0-proxmox-install}
+  - {id: host-backup-jobs-onboot, rung: L1, owner: Ansible pve_host_config, status: declared,
+     evidence: [platform/proxmox/ansible/roles/pve_host_config/tasks/main.yml]}
+  - {id: host-nfs-storage, rung: L1, owner: Ansible synology_nfs, status: declared,
+     evidence: [platform/nas/ansible/roles/synology_nfs/tasks/configure.yml]}
+  - {id: cluster, rung: L2, owner: Ansible pve_cluster/pve_join, status: declared,
+     evidence: [platform/proxmox/ansible/roles/pve_cluster/tasks/main.yml, platform/proxmox/ansible/roles/pve_join/tasks/main.yml]}
+  - {id: nas-dsm, rung: L0, owner: operator, status: manual, runbook_step: l0-nas}
+  - {id: nas-configuration-backup, rung: L6, owner: operator, status: manual, runbook_step: l0-nas, backup: nas-configuration}
+  - {id: dns-records, rung: L5, owner: operator, status: manual, runbook_step: l5-dns-records}
+  - {id: router-dhcp-reservations, rung: L0, owner: operator, status: manual, runbook_step: l0-nas}
+  - {id: workstation, rung: L0, owner: operator, status: manual, runbook_step: l0-workstation}
+  - {id: pivpn, rung: L0, owner: operator, status: manual, runbook_step: l0-workstation,
+     note: "Unmanaged by this repository; rebuilt by hand. Recorded as the estate's largest exposure."}
+  - {id: tofu-state, rung: L3, owner: operator, status: manual, runbook_step: l3-state-backend, backup: tofu-state}
+
+  # ---- L3: guests ---------------------------------------------------------
+  - {id: guest-eveng, guest: eveng, rung: L3, owner: vzdump, status: backup-restored, backup: proxmox-guests}
+  - {id: guest-homelab-services, guest: homelab-services, rung: L3, owner: OpenTofu rebuild-guests, status: declared,
+     evidence: [platform/proxmox/terraform/rebuild-guests/main.tf, platform/proxmox/terraform/homelab-guests/main.tf]}
+  - {id: guest-observability, guest: observability, rung: L3, owner: OpenTofu rebuild-guests, status: declared,
+     evidence: [platform/proxmox/terraform/rebuild-guests/main.tf, platform/proxmox/terraform/homelab-guests/main.tf]}
+  - {id: guest-bao-1, guest: bao-1, rung: L3, owner: OpenTofu rebuild-guests, status: declared,
+     evidence: [platform/proxmox/terraform/rebuild-guests/main.tf, security/secrets-openbao/terraform/main.tf]}
+  - {id: guest-bao-2, guest: bao-2, rung: L3, owner: OpenTofu rebuild-guests, status: declared,
+     evidence: [platform/proxmox/terraform/rebuild-guests/main.tf, security/secrets-openbao/terraform/main.tf]}
+  - {id: guest-bao-3, guest: bao-3, rung: L3, owner: OpenTofu rebuild-guests, status: declared,
+     evidence: [platform/proxmox/terraform/rebuild-guests/main.tf, security/secrets-openbao/terraform/main.tf]}
+  - {id: guest-netbox, guest: netbox, rung: L3, owner: OpenTofu rebuild-guests, status: declared,
+     evidence: [platform/proxmox/terraform/rebuild-guests/main.tf, services/netbox/terraform/proxmox-guest/main.tf]}
+  - {id: guest-restore-test, guest: restore-test, rung: L6, owner: operator, status: manual, runbook_step: l6-restore-drills,
+     note: Isolated restore target; recreated per drill.}
+  - {id: guest-data-all, rung: L6, owner: vzdump, status: backup-restored, backup: proxmox-guests}
+
+  # ---- L4 / L5: VM 300 ----------------------------------------------------
+  - {id: vm300-base, rung: L4, owner: Ansible homelab_guest_base, status: declared,
+     evidence: [services/homelab-services/ansible/roles/homelab_guest_base/tasks/main.yml]}
+  - {id: vm300-apps, rung: L5, owner: Ansible homelab_services, status: declared,
+     evidence: [services/homelab-services/ansible/roles/homelab_services/tasks/main.yml, services/homelab-services/config/templates/stage-d/compose]}
+  - {id: homepage, rung: L5, owner: Ansible homelab_services, status: declared,
+     evidence: [services/homelab-services/config/templates/stage-d/config/homepage/services.yaml]}
+  - {id: npm-routes, rung: L5, owner: Ansible homelab_services, status: declared,
+     evidence: [services/homelab-services/config/templates/stage-d/config/npm/http.conf]}
+  - {id: uptime-kuma-monitors, rung: L5, owner: operator (UI) from monitors.yml, status: manual, runbook_step: l5-uptime-kuma}
+  - {id: vm300-app-data, rung: L6, owner: homelab_backup, status: backup-restored, backup: vm300-app-data}
+
+  # ---- L4 / L5: observability --------------------------------------------
+  - {id: vm310-base, rung: L4, owner: Ansible observability bootstrap, status: declared,
+     evidence: [observability/ansible/playbooks/20-bootstrap.yml]}
+  - {id: observability-stack, rung: L5, owner: Ansible observability_stack, status: declared,
+     evidence: [observability/docker/compose.yaml, observability/config/prometheus/prometheus.yml]}
+  - {id: grafana-dashboards, rung: L5, owner: Grafana provisioning, status: declared,
+     evidence: [observability/config/grafana/provisioning/dashboards/dashboards.yml]}
+  - {id: alert-rules, rung: L5, owner: Prometheus rule files, status: declared,
+     evidence: [observability/config/prometheus/rules/media.yml, observability/config/prometheus/rules/synology.yml]}
+  - {id: vm310-data, rung: L6, owner: observability backup.sh, status: backup-restored, backup: vm310-observability}
+
+  # ---- L4 / L5: NetBox ----------------------------------------------------
+  - {id: vm330-base, rung: L4, owner: Ansible homelab_guest_base, status: declared,
+     evidence: [services/netbox/ansible/playbooks/31-configure-guest.yml]}
+  - {id: netbox-app, rung: L5, owner: Ansible netbox_app, status: declared,
+     evidence: [services/netbox/ansible/roles/netbox_app/tasks/main.yml]}
+  - {id: netbox-inventory-data, rung: L5, owner: operator import of generated CSV, status: manual, runbook_step: l5-netbox-seed}
+  - {id: vm330-data, rung: L6, owner: netbox_backup, status: backup-restored, backup: vm330-netbox}
+
+  # ---- L4 / L5 / L7: OpenBao ---------------------------------------------
+  - {id: openbao-hosts, rung: L4, owner: Ansible OpenBao roles, status: declared,
+     evidence: [security/secrets-openbao/ansible/playbooks/10-prepare-hosts.yml]}
+  - {id: openbao-server, rung: L5, owner: Ansible OpenBao roles, status: declared,
+     evidence: [security/secrets-openbao/ansible/playbooks/20-install-server.yml, security/secrets-openbao/ansible/playbooks/40-configure-ha.yml]}
+  - {id: openbao-init, rung: L7, owner: operator (attended ceremony), status: manual, runbook_step: l7-openbao-init}
+  - {id: openbao-data, rung: L6, owner: openbao_backup, status: manual, runbook_step: l6-restore-drills, backup: openbao-raft,
+     note: Snapshots start only after the attended initialization.}
+
+  # ---- L0 / L4 / L5 / L6: media ------------------------------------------
+  - {id: media-guest-vm, rung: L0, owner: operator + cloud-init template, status: manual, runbook_step: l0-media-guest}
+  - {id: media-guest-base, rung: L4, owner: Ansible media_host, status: declared,
+     evidence: [services/media/ansible/roles/media_host/tasks/main.yml]}
+  - {id: media-containers, rung: L5, owner: Ansible arr_stack, status: declared,
+     evidence: [services/media/config/compose.yaml, services/media/ansible/roles/arr_stack/tasks/main.yml]}
+  - {id: arr-config, rung: L5, owner: OpenTofu devopsarr, status: declared,
+     evidence: [services/media/terraform/arr/main.tf]}
+  - {id: arr-quality-profiles, rung: L5, owner: Recyclarr, status: declared,
+     evidence: [services/media/config/recyclarr/recyclarr.yml]}
+  - {id: arr-indexers, rung: L5, owner: operator (lawful-provider decision), status: manual, runbook_step: l5-media-arr-config}
+  - {id: media-telemetry, rung: L5, owner: Alloy push (ADR-0006), status: declared,
+     evidence: [services/media/config/alloy/config.alloy]}
+  - {id: media-homepage-kuma-npm, rung: L5, owner: operator decision, status: manual, runbook_step: l5-media-arr,
+     note: No card, monitor or route until a workstation NAT/firewall change is approved (ADR-0006).}
+  - {id: plex-install-claim, rung: L5, owner: operator, status: manual, runbook_step: l5-plex}
+  - {id: plex-libraries, rung: L5, owner: plex_libraries.py, status: declared,
+     evidence: [services/media/config/plex/libraries.yml, services/media/scripts/plex_libraries.py]}
+  - {id: plex-metadata, rung: L6, owner: plex role backup task, status: backup-restored, backup: plex-metadata}
+  - {id: arr-data, rung: L6, owner: media_backup, status: backup-restored, backup: arr-apps}
+  - {id: qbittorrent, rung: L5, owner: operator, status: manual, runbook_step: l0-workstation, backup: qbittorrent-state}
+  - {id: media-library, rung: L6, owner: NAS RAID1, status: manual, runbook_step: l6-restore-drills, backup: media-library,
+     note: Data, not recreated. Protected by the RAID1 mirror only; Disk 3 failed SMART.}
+  - {id: media-guest-disk, rung: L6, owner: rebuild, status: declared, backup: media-guest-disk,
+     evidence: [services/media/config/cloud-init/user-data.yml.tmpl, services/media/ansible/roles/media_host/tasks/main.yml]}
+
+  # ---- L7: secrets --------------------------------------------------------
+  - {id: operator-inputs, rung: L7, owner: operator, status: manual, runbook_step: l7-operator-inputs}

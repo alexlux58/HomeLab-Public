@@ -1,0 +1,14 @@
+---
+# Plex runs natively on workstation under the desktop account. This role only
+# checks it and, behind its gate, registers the metadata backup task.
+# It never changes the Windows firewall, sleep policy or Plex settings.
+# Expected confirmation: "PLEX BACKUP workstation"
+plex_allow_backup_task: false
+plex_backup_confirmation: ""
+
+plex_local_url: http://127.0.0.1:32400
+plex_backup_script_src: "{{ role_path }}/../../../scripts/plex-backup.ps1"
+plex_backup_script_dest: C:\ProgramData\HomeLab\plex-backup.ps1
+plex_backup_destination: \\192.168.0.20\media-backups\plex
+plex_backup_time: "04:30"
+plex_backup_task_name: HomeLab Plex metadata backup

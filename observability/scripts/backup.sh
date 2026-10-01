@@ -9,7 +9,7 @@ readonly backup_root="${data_root}/backups"
 readonly metric_dir="/var/lib/node_exporter/textfile"
 readonly compose=(docker compose --project-directory "${stack_root}/docker")
 
-# Prometheus binds the LAN address, not loopback (see compose.yml:
+# Prometheus binds the LAN address, not loopback (see compose.yaml:
 # ${OBSERVABILITY_IP}:9090:9090). Reading the address from the same .env that
 # Compose uses keeps the two definitions from drifting. A hardcoded
 # http://127.0.0.1:9090 here silently failed every nightly run with curl exit 7
@@ -51,7 +51,7 @@ sqlite3 "${data_root}/grafana/grafana.db" ".timeout 30000" ".backup '${stage}/gr
 test "$(sqlite3 "${stage}/grafana.db" 'PRAGMA integrity_check;')" = "ok"
 
 cp -a "${stack_root}/config" "${stage}/config"
-cp -a "${stack_root}/docker/compose.yml" "${stage}/compose.yml"
+cp -a "${stack_root}/docker/compose.yaml" "${stage}/compose.yaml"
 cp -a "${stack_root}/docker/.env" "${stage}/runtime.env"
 "${compose[@]}" images --format json >"${stage}/images.json"
 "${compose[@]}" ps --format json >"${stage}/containers.json"

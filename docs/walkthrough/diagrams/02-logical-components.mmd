@@ -1,0 +1,30 @@
+flowchart LR
+  subgraph pve1["pve1"]
+    v290["VM 290 EVE-NG"]
+    v310["VM 310 observability<br/>192.168.0.31"]
+    v320["VM 320 bao-1"]
+  end
+  subgraph pve2["pve2"]
+    v300["VM 300 homelab-services<br/>192.168.0.30, NPM + 8 apps"]
+    v321["VM 321 bao-2"]
+  end
+  subgraph dell["pve3"]
+    v330["VM 330 NetBox<br/>192.168.0.50"]
+    v322["VM 322 bao-3"]
+  end
+  subgraph tower["workstation"]
+    plex["Plex (native)"]
+    qbt["qBittorrent (native)"]
+    media["media-vm<br/>Radarr, Prowlarr, exporters, Alloy"]
+  end
+  nas[("Synology<br/>DNS, NFS, Media share")]
+
+  v300 -- "HTTPS routes" --> v310
+  v300 -- "HTTPS route" --> v330
+  v300 -- "HTTPS route" --> vip["OpenBao VIP 192.168.0.40"]
+  vip --> v320 & v321 & v322
+  v310 -- "scrape / probe" --> v300 & v330 & nas
+  media -- "remote_write" --> v310
+  media -- "CIFS" --> nas
+  plex -- "UNC read" --> nas
+  qbt -- "downloads" --> nas

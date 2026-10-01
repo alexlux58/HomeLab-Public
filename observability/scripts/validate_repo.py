@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPOSE = ROOT / "docker" / "compose.yml"
+COMPOSE = ROOT / "docker" / "compose.yaml"
 REQUIRED_DASHBOARDS = {
     "fleet-overview.json",
     "proxmox.json",

@@ -1,0 +1,23 @@
+---
+# Declared Uptime Kuma monitors (L5). Uptime Kuma 2 on VM 300 keeps monitors in
+# MariaDB and has no supported write API for them, so this file is the source of
+# truth and scripts/uptime_kuma_monitors.py reports drift against the nightly
+# backup dump (uptime-kuma-all-databases.sql.gz), offline and read-only.
+# Adding a missing monitor is a manual UI step
+# (docs/runbooks/rebuild-from-zero.md, L5). Every proxied site in
+# inventory/lab.yml dns_records must appear here (tested).
+interval_seconds: 60
+monitors:
+  - {name: Homepage, type: http, url: "https://home.lab.example.com"}
+  - {name: Uptime Kuma, type: http, url: "https://status.lab.example.com"}
+  - {name: IT-Tools, type: http, url: "https://tools.lab.example.com"}
+  - {name: NetKnife, type: http, url: "https://netknife.lab.example.com"}
+  - {name: Linkding, type: http, url: "https://links.lab.example.com"}
+  - {name: PairDrop, type: http, url: "https://drop.lab.example.com"}
+  - {name: Speedtest Tracker, type: http, url: "https://speed.lab.example.com"}
+  - {name: Grafana, type: http, url: "https://grafana.lab.example.com"}
+  - {name: Prometheus, type: http, url: "https://prometheus.lab.example.com"}
+  - {name: Alertmanager, type: http, url: "https://alert.lab.example.com"}
+  - {name: NetBox, type: http, url: "https://netbox.lab.example.com"}
+  - {name: IPAM, type: http, url: "https://ipam.lab.example.com"}
+  - {name: OpenBao, type: http, url: "https://bao.lab.example.com"}

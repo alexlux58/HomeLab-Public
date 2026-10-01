@@ -1,0 +1,38 @@
+# Guardrails that apply to every agent and every human commit.
+# Install once per checkout: `pre-commit install` (the devcontainer does it).
+repos:
+  - repo: local
+    hooks:
+      - id: gitleaks-staged
+        name: gitleaks staged scan
+        entry: gitleaks git --staged --redact=100 --no-banner
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: gitleaks-push
+        name: approved origin and gitleaks on pushed commits
+        entry: python3 tools/repo-checks/pre_push.py
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: repo-public-boundary
+        name: public boundary scan
+        entry: tools/publish/check-public.sh --staged
+        language: system
+        pass_filenames: false
+      - id: forbidden-constructs
+        name: forbidden safety constructs
+        entry: python3 tools/repo-checks/forbidden_constructs.py
+        language: system
+        types: [text]
+      - id: yamllint
+        name: yamllint (per-component config)
+        entry: python3 tools/repo-checks/run_yamllint.py
+        language: system
+        files: \.ya?ml$
+        exclude: ^public/
+      - id: tofu-fmt
+        name: tofu/terraform fmt check
+        entry: bash tools/repo-checks/tofu-fmt.sh
+        language: system
+        files: \.(tf|tofu|tftest\.hcl)$

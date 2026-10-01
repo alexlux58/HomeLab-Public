@@ -1,0 +1,271 @@
+---
+# Stage 6a. Everything the official 8 -> 9 upgrade guide asks you to check,
+# plus this migration's own precondition: verified backups must already exist.
+#
+# Reference: https://pve.proxmox.com/wiki/Upgrade_from_8_to_9
+
+- name: Require a verified backup manifest before even considering an upgrade
+  when: pve_upgrade_precheck_require_verified_backups | bool
+  block:
+    - name: Look for the verified manifest on the controller
+      ansible.builtin.stat:
+        path: "{{ artifacts_dir }}/backup-manifest-{{ expected_hostname }}.json"
+      delegate_to: localhost
+      become: false
+      register: pve_upgrade_precheck_manifest
+
+    - name: Assert the manifest exists
+      ansible.builtin.assert:
+        that:
+          - pve_upgrade_precheck_manifest.stat.exists
+        fail_msg: >-
+          No verified backup manifest for {{ expected_hostname }}. Run
+          `make backup-initial`, `make backup-final` and `make verify-backups` first.
+
+    - name: Load the verified manifest
+      ansible.builtin.set_fact:
+        pve_upgrade_precheck_entries: >-
+          {{ lookup('file', artifacts_dir ~ '/backup-manifest-' ~ expected_hostname ~ '.json') | from_json }}
+
+    - name: Assert every protected guest has a verified archive
+      ansible.builtin.assert:
+        that:
+          - (pve_upgrade_precheck_entries | selectattr('verification.ok')
+             | map(attribute='original_vmid') | map('int') | unique | list | sort)
+            == (protected_guests[inventory_hostname]
+                | map(attribute='vmid') | map('int') | unique | list | sort)
+        fail_msg: >-
+          The verified archives do not cover every protected guest on
+          {{ inventory_hostname }}. Refusing to plan an upgrade.
+
+- name: Read the current Proxmox version
+  ansible.builtin.command: pveversion
+  changed_when: false
+  register: pve_upgrade_precheck_version
+
+- name: Extract the version number
+  ansible.builtin.set_fact:
+    pve_upgrade_precheck_current: "{{ pve_upgrade_precheck_version.stdout | regex_search('pve-manager/([0-9.]+)', '\\1') | first }}"
+
+- name: Report the version situation
+  ansible.builtin.debug:
+    msg:
+      - "current:              {{ pve_upgrade_precheck_current }}"
+      - "required before 8->9: >= {{ pve8_minimum_before_upgrade }}"
+      - "target release:       {{ target_pve_release }}"
+
+- name: Refresh the package lists
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 0
+  when: pve_upgrade_precheck_apt_update | bool
+
+- name: Collect the repository configuration
+  ansible.builtin.shell: |
+    set -o pipefail
+    set -eu
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*; do
+      [ -e "$f" ] || continue
+      printf '### %s\n' "$f"
+      cat "$f"
+      printf '\n'
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: pve_upgrade_precheck_repos
+
+- name: Read the active apt repository policy
+  ansible.builtin.command: apt-cache policy
+  changed_when: false
+  register: pve_upgrade_precheck_repo_policy
+
+- name: Classify the configured repositories
+  ansible.builtin.set_fact:
+    pve_upgrade_precheck_repo_facts:
+      has_enterprise: "{{ 'enterprise.proxmox.com' in pve_upgrade_precheck_repo_policy.stdout }}"
+      has_no_subscription: "{{ 'pve-no-subscription' in pve_upgrade_precheck_repo_policy.stdout }}"
+      has_test: "{{ 'pve-test' in pve_upgrade_precheck_repo_policy.stdout }}"
+      has_ceph: "{{ '/ceph-' in pve_upgrade_precheck_repo_policy.stdout }}"
+      third_party: >-
+        {{ pve_upgrade_precheck_repos.stdout_lines
+           | select('match', '^(deb |URIs:)')
+           | reject('search', 'proxmox.com')
+           | reject('search', 'debian.org')
+           | list }}
+
+- name: Read the subscription status
+  ansible.builtin.command: pvesubscription get
+  changed_when: false
+  failed_when: false
+  register: pve_upgrade_precheck_subscription
+
+- name: Refuse to upgrade against an enterprise repository with no subscription
+  ansible.builtin.assert:
+    that:
+      # Folded scalar: the literal "status: active" contains a colon and would
+      # otherwise be parsed as a YAML mapping.
+      - >-
+        not (pve_upgrade_precheck_repo_facts.has_enterprise | bool)
+        or ('status: active' in pve_upgrade_precheck_subscription.stdout)
+    fail_msg: |
+      {{ inventory_hostname }} has the ENTERPRISE repository enabled but reports
+      no valid subscription:
+
+        {{ pve_upgrade_precheck_subscription.stdout_lines | join(' | ') }}
+
+      enterprise.proxmox.com returns HTTP 401 without a key, so `apt update` and
+      therefore the whole upgrade will fail. Choose one:
+
+        a) buy a subscription and add the key, or
+        b) switch this host to the no-subscription repository:
+             - disable /etc/apt/sources.list.d/pve-enterprise.{list,sources}
+             - enable  pve-no-subscription
+           This is a repository change and needs the same approval as any other:
+             -e allow_repo_change_pve1=true
+             -e repo_change_confirmation_pve1='{{ repo_change_confirmation_pve1_required }}'
+
+      Reference: https://pve.proxmox.com/wiki/Package_Repositories
+    success_msg: "Repository/subscription combination is coherent."
+
+- name: Warn if enterprise and no-subscription repositories are mixed
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: both the enterprise and the no-subscription repository are enabled.
+      The official documentation says not to mix them. Decide which one this host
+      should use before upgrading.
+  when:
+    - pve_upgrade_precheck_repo_facts.has_enterprise | bool
+    - pve_upgrade_precheck_repo_facts.has_no_subscription | bool
+
+- name: Check for held packages
+  ansible.builtin.command: apt-mark showhold
+  changed_when: false
+  register: pve_upgrade_precheck_holds
+
+- name: Assert no packages are held back
+  ansible.builtin.assert:
+    that:
+      - pve_upgrade_precheck_holds.stdout | trim | length == 0
+    fail_msg: >-
+      These packages are held and would break a dist-upgrade:
+      {{ pve_upgrade_precheck_holds.stdout_lines }}. Release the holds deliberately first.
+
+- name: Check free space on the root filesystem
+  ansible.builtin.command:
+    argv: [df, -B1, "--output=avail", /]
+  changed_when: false
+  register: pve_upgrade_precheck_root_free
+
+- name: Assert the root filesystem has enough free space
+  ansible.builtin.assert:
+    that:
+      - (pve_upgrade_precheck_root_free.stdout_lines[1] | trim | int) > (pve_upgrade_precheck_min_root_free_gib | int) * 1024**3
+    fail_msg: >-
+      Only {{ (pve_upgrade_precheck_root_free.stdout_lines[1] | trim | int / 1024**3) | round(1) }} GiB free on /
+      — the upgrade guide wants at least {{ pve_upgrade_precheck_min_root_free_gib }} GiB.
+
+- name: Check time synchronisation
+  ansible.builtin.command: timedatectl show
+  changed_when: false
+  register: pve_upgrade_precheck_time
+
+- name: Assert the clock is synchronised
+  ansible.builtin.assert:
+    that:
+      - "'NTPSynchronized=yes' in pve_upgrade_precheck_time.stdout"
+    fail_msg: "Clock is not NTP-synchronised on {{ inventory_hostname }}; fix this before clustering or upgrading."
+
+- name: Run the official pve8to9 checklist
+  ansible.builtin.command: pve8to9 --full
+  changed_when: false
+  failed_when: false
+  register: pve_upgrade_precheck_pve8to9
+  when:
+    - pve_upgrade_precheck_run_pve8to9 | bool
+    - pve_upgrade_precheck_current is version(pve8_minimum_before_upgrade, '>=')
+    - pve_upgrade_precheck_current is version('9.0', '<')
+
+- name: Explain why pve8to9 is deferred on an older PVE 8 release
+  ansible.builtin.debug:
+    msg: >-
+      pve8to9 is not available yet on PVE {{ pve_upgrade_precheck_current }}.
+      Stage 6b must first update this host to at least PVE
+      {{ pve8_minimum_before_upgrade }}, then it runs and gates on pve8to9
+      before any PVE 9 repository change.
+  when:
+    - pve_upgrade_precheck_current is version(pve8_minimum_before_upgrade, '<')
+    - pve_upgrade_precheck_current is version('9.0', '<')
+
+- name: Show the pve8to9 output in full
+  ansible.builtin.debug:
+    var: pve_upgrade_precheck_pve8to9.stdout_lines
+  when: pve_upgrade_precheck_pve8to9 is not skipped
+
+- name: Require a successful and parseable pve8to9 result
+  ansible.builtin.assert:
+    that:
+      - (pve_upgrade_precheck_pve8to9.rc | int) == 0
+      - pve_upgrade_precheck_pve8to9.stdout is regex('(?s).*FAILURES:\\s*\\d+.*')
+      - pve_upgrade_precheck_pve8to9.stdout is regex('(?s).*WARNINGS:\\s*\\d+.*')
+    fail_msg: |
+      pve8to9 did not return a successful, parseable checklist result.
+      rc={{ pve_upgrade_precheck_pve8to9.rc | default('missing') }}
+      stdout={{ pve_upgrade_precheck_pve8to9.stdout | default('') }}
+      stderr={{ pve_upgrade_precheck_pve8to9.stderr | default('') }}
+      Do not continue to the PVE 9 repository change.
+  when: pve_upgrade_precheck_pve8to9 is not skipped
+
+- name: Extract the pve8to9 result counters
+  ansible.builtin.set_fact:
+    # NOTE: these MUST stay double-quoted scalars. Inside a folded (>-) or
+    # literal (|-) block scalar the '\\1' backreference is passed through
+    # verbatim, the counter silently evaluates to 0, and this gate would wave
+    # through an upgrade that pve8to9 had actually failed.
+    pve_upgrade_precheck_failures: "{{ pve_upgrade_precheck_pve8to9.stdout | regex_search('FAILURES:\\s*(\\d+)', '\\1') | first | default('0') | int }}"
+    pve_upgrade_precheck_warnings: "{{ pve_upgrade_precheck_pve8to9.stdout | regex_search('WARNINGS:\\s*(\\d+)', '\\1') | first | default('0') | int }}"
+  when: pve_upgrade_precheck_pve8to9 is not skipped
+
+- name: Stop on any unresolved pve8to9 failure or warning
+  ansible.builtin.assert:
+    that:
+      - (pve_upgrade_precheck_failures | int) == 0
+      - (pve_upgrade_precheck_warnings | int) == 0
+    fail_msg: |
+      pve8to9 reports {{ pve_upgrade_precheck_failures }} failure(s) and
+      {{ pve_upgrade_precheck_warnings }} warning(s) on {{ inventory_hostname }}.
+
+      Every one of them must be resolved or consciously accepted before the
+      upgrade. Read the output above, fix the underlying issue, and re-run this
+      precheck. To proceed with warnings you have personally reviewed and
+      accepted, re-run with:
+        -e pve_precheck_accept_warnings=true
+      (failures can never be waived).
+    success_msg: "pve8to9 reports no failures and no warnings."
+  when:
+    - pve_upgrade_precheck_pve8to9 is not skipped
+    - not (pve_precheck_accept_warnings | default(false) | bool)
+
+- name: Stop on any pve8to9 failure even when warnings are accepted
+  ansible.builtin.assert:
+    that:
+      - (pve_upgrade_precheck_failures | int) == 0
+    fail_msg: "pve8to9 reports {{ pve_upgrade_precheck_failures }} hard failure(s). These can never be waived."
+  when:
+    - pve_upgrade_precheck_pve8to9 is not skipped
+    - pve_precheck_accept_warnings | default(false) | bool
+
+- name: Render the proposed repository change report
+  ansible.builtin.template:
+    src: repository-change-report.md.j2
+    dest: "{{ pve_upgrade_precheck_report_path }}"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+
+- name: Point the operator at the report
+  ansible.builtin.debug:
+    msg:
+      - "Precheck complete for {{ inventory_hostname }}."
+      - "Proposed repository changes: {{ pve_upgrade_precheck_report_path }}"
+      - "NOTHING has been changed. Review the report, then approve stage 6b explicitly."

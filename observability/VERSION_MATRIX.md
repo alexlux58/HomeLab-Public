@@ -18,4 +18,3 @@ inputs; upgrades are a reviewed stage, never an unattended `latest` pull.
 
 Before promotion, `scripts/verify-images.sh` pulls every image and records its
 resolved repository digest in `artifacts/image-digests.txt`.
-

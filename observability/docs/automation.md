@@ -1,7 +1,7 @@
 # Automation boundary
 
 Terraform ownership for VM 310 lives in
-`../proxmox-cluster-migration/terraform/homelab-guests`. It adopts the existing
+`../../platform/proxmox/terraform/homelab-guests`. It adopts the existing
 protected guest and manages safe identity/resource attributes without owning,
 replacing, or deleting VM disks.
 

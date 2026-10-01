@@ -1,0 +1,13 @@
+---
+profile: production
+
+exclude_paths:
+  - .venv/
+  - ansible/collections/
+  - terraform/
+  - tests/
+
+# Consistent with platform/proxmox: commands that only read carry
+# changed_when: false; mutating ones say changed_when explicitly.
+skip_list:
+  - no-changed-when

@@ -1,0 +1,34 @@
+---
+# Media hosts (services/media).
+#
+# media-vm: the VirtualBox guest on workstation, reachable only through a
+# loopback NAT forward, so the controller must run on workstation itself (WSL2
+# with mirrored networking, or Windows). Its forward port and admin user are
+# not recorded yet: set media_guest_ssh_port and media_guest_admin_user in
+# inventory/host_vars/media-vm.yml (git-ignored); 00-preflight refuses to
+# run while either is undefined.
+#
+# workstation: the Windows host itself, for the Plex role, over its existing
+# OpenSSH server with the PowerShell shell.
+all:
+  children:
+    media_guests:
+      hosts:
+        media-vm:
+          ansible_host: 127.0.0.1
+          ansible_port: "{{ media_guest_ssh_port | default(omit) }}"
+          ansible_user: "{{ media_guest_admin_user | default(omit) }}"
+          ansible_python_interpreter: /usr/bin/python3
+          ansible_ssh_common_args: >-
+            -o StrictHostKeyChecking=yes
+            -o IdentitiesOnly=yes
+    media_windows:
+      hosts:
+        workstation:
+          ansible_host: 192.168.0.70
+          ansible_user: alexssh
+          ansible_connection: ssh
+          ansible_shell_type: powershell
+          ansible_ssh_common_args: >-
+            -o StrictHostKeyChecking=yes
+            -o IdentitiesOnly=yes

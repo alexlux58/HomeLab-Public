@@ -1,0 +1,13 @@
+flowchart TB
+  L0["L0 Bare metal<br/>answer files, NAS, workstation, media guest"]
+  L1["L1 Host config<br/>NFS storage, vzdump jobs, onboot"]
+  L2["L2 Cluster<br/>create, join pve3, join pve2"]
+  L3["L3 Guests<br/>state backend, rebuild-guests plan/apply, EVE-NG restore"]
+  L4["L4 Guest base<br/>VM 300, 310, 330, OpenBao hosts, runner, media host"]
+  L5["L5 Applications<br/>apps, routes, DNS, stacks, *arr, Plex, monitors"]
+  L6["L6 Data restore<br/>isolated drills per backup-matrix row"]
+  L7["L7 Attended secrets<br/>OpenBao ceremony, operator inputs"]
+  L8["L8 Validate and onboot"]
+  L0 --> L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7 --> L8
+  note["Each step: one target, its gate, verify, rollback.<br/>No target chains steps (tested)."]
+  L4 -.- note

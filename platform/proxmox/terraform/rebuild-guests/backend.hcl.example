@@ -1,0 +1,3 @@
+# D1 local backend; devcontainer must mount D:/homelab-state.
+path = "/homelab-state/rebuild-guests/terraform.tfstate"
+workspace_dir = "/homelab-state/rebuild-guests/workspaces"

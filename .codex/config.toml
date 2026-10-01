@@ -1,0 +1,10 @@
+# Project-scoped Codex settings for the Home Lab monorepo. Codex loads this
+# layer (and .codex/rules/) only after the operator marks the project trusted.
+# The rules themselves are in AGENTS.md; this file only sets the sandbox.
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+# Offline by default. A phase that needs the network asks for approval.
+network_access = false

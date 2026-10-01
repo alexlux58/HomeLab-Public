@@ -1,0 +1,8 @@
+---
+- name: Authorize workstation read-only archive pull on one Proxmox node
+  hosts: "{{ backup_pull_node | default('pve1') }}"
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  roles:
+    - backup_pull

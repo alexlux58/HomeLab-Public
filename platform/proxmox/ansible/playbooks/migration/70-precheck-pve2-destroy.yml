@@ -1,0 +1,196 @@
+---
+# Stage 9a — verify every gate before .12 may be clean-installed.
+#
+#   make precheck-destroy-pve2
+#
+# This playbook destroys nothing. The operator has chosen to discard the five
+# current guests on pve2 and rebuild their software later. The purpose of
+# these gates is to prove that decision is explicit, cataloged, and cannot be
+# confused with the two guests that must survive on pve1.
+- name: Verify every precondition for rebuilding .12
+  hosts: localhost
+  gather_facts: true
+  connection: local
+  become: false
+  serial: 1
+  any_errors_fatal: true
+  tags: [stage9, precheck]
+
+  vars:
+    manifest_path: "{{ artifacts_dir }}/backup-manifest.json"
+    verification_path: "{{ artifacts_dir }}/backup-verification.json"
+    discovery_path: "{{ artifacts_dir }}/discovery.json"
+    collisions_path: "{{ artifacts_dir }}/vmid-collisions.json"
+    config_capture_path: "{{ host_configs_dir }}/pve2/latest"
+    rebuild_catalog_path: "{{ project_root }}/docs/rebuild-catalog.md"
+
+  tasks:
+    - name: Check that every required artifact exists
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ manifest_path }}"
+        - "{{ verification_path }}"
+        - "{{ discovery_path }}"
+        - "{{ collisions_path }}"
+        - "{{ config_capture_path }}"
+        - "{{ rebuild_catalog_path }}"
+      register: destroy_artifacts
+
+    - name: Assert no required artifact is missing
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: |
+          Missing required artifact: {{ item.item }}
+          .12 cannot be rebuilt until every gate has evidence.
+      loop: "{{ destroy_artifacts.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Load the gate evidence
+      ansible.builtin.set_fact:
+        destroy_manifest: "{{ lookup('file', manifest_path) | from_json }}"
+        destroy_verification: "{{ lookup('file', verification_path) | from_json }}"
+        destroy_discovery: "{{ lookup('file', discovery_path) | from_json }}"
+        destroy_collisions: "{{ lookup('file', collisions_path) | from_json }}"
+
+    - name: Build the observed and declared pve2 guest lists
+      ansible.builtin.set_fact:
+        destroy_observed_pve2_guests: "{{ destroy_discovery.hosts.pve2.guests }}"
+        destroy_declared_pve2_vmids: >-
+          {{ disposable_guests.pve2 | map(attribute='vmid') | map('int') | sort }}
+
+    - name: "Gate 1 — two complete backup generations exist for pve1"
+      ansible.builtin.assert:
+        that:
+          - (destroy_manifest.archives | selectattr('source_hostname', 'equalto', 'pve1')
+             | selectattr('generation', 'equalto', 'initial') | list | length)
+            == (protected_guests.pve1 | length)
+          - (destroy_manifest.archives | selectattr('source_hostname', 'equalto', 'pve1')
+             | selectattr('generation', 'equalto', 'final') | list | length)
+            == (protected_guests.pve1 | length)
+        fail_msg: >-
+          pve1 does not have two complete backup generations for both protected guests.
+        success_msg: "Gate 1 PASS — two complete generations for both protected pve1 guests."
+
+    - name: "Gate 2 — every required archive verified"
+      ansible.builtin.assert:
+        that:
+          - destroy_verification.verdict == 'pass'
+          - destroy_verification.counts.equal
+          - (destroy_verification.required_generations | sort) == ['final', 'initial']
+        fail_msg: >-
+          Backup verification did not pass for both generations:
+          {{ destroy_verification.counts }} / findings: {{ destroy_verification.findings }}
+        success_msg: "Gate 2 PASS — every required pve1 archive verified."
+
+    - name: "Gate 3 — pve2 is explicitly outside the protected set"
+      ansible.builtin.assert:
+        that:
+          - protected_guests.pve2 is not defined
+          - not (hostvars.pve2.preserve_guests | bool)
+          - destroy_declared_pve2_vmids == [100, 101, 102, 9000, 9100]
+        fail_msg: >-
+          The pve2 discard decision is inconsistent between inventory and group variables.
+        success_msg: "Gate 3 PASS — all five pve2 guests are explicitly rebuild-later."
+
+    - name: "Gate 4 — live discovery matches the exact discard list and every guest is stopped"
+      ansible.builtin.assert:
+        that:
+          - (destroy_observed_pve2_guests | map(attribute='vmid') | map('int') | sort)
+            == destroy_declared_pve2_vmids
+          - destroy_observed_pve2_guests | rejectattr('status', 'equalto', 'stopped') | list | length == 0
+        fail_msg: >-
+          pve2 no longer matches the reviewed discard list, or a guest is running.
+          Refresh discovery and review docs/rebuild-catalog.md before proceeding.
+        success_msg: "Gate 4 PASS — the exact five cataloged guests exist and are stopped."
+
+    - name: "Gate 5 — host configuration and snippets captured"
+      ansible.builtin.find:
+        paths: "{{ config_capture_path }}"
+        recurse: true
+        file_type: file
+      register: destroy_config_files
+
+    - name: Assert the configuration capture is not empty
+      ansible.builtin.assert:
+        that:
+          - destroy_config_files.matched > 10
+        fail_msg: "The pve2 configuration capture looks empty ({{ destroy_config_files.matched }} files)."
+        success_msg: "Gate 5 PASS — {{ destroy_config_files.matched }} configuration files captured."
+
+    - name: "Gate 6 — the rebuild catalog is substantive"
+      ansible.builtin.stat:
+        path: "{{ rebuild_catalog_path }}"
+      register: destroy_rebuild_catalog
+
+    - name: Assert the catalog records the later rebuild work
+      ansible.builtin.assert:
+        that:
+          - destroy_rebuild_catalog.stat.size > 2000
+        fail_msg: "docs/rebuild-catalog.md is missing or too small to be a useful rebuild record."
+        success_msg: "Gate 6 PASS — rebuild-later software and websites are cataloged."
+
+    - name: "Gate 7 — every current VMID collision disappears during clean install"
+      ansible.builtin.assert:
+        that:
+          - destroy_collisions.summary.unresolved_collision_count == 0
+          - destroy_collisions.policy.disposable_hosts | sort == ['pve', 'pve2']
+        fail_msg: "Unresolved VMID collisions remain: {{ destroy_collisions.vmid_collisions }}"
+        success_msg: >-
+          Gate 7 PASS — all {{ destroy_collisions.summary.vmid_collision_count }} collision(s)
+          resolve when .12 and .13 are clean-installed.
+
+  post_tasks:
+    - name: Write the proposed-change report
+      ansible.builtin.copy:
+        dest: "{{ artifacts_dir }}/destroy-pve2-proposal.md"
+        mode: "0644"
+        content: |
+          # Proposed change: rebuild pve2 (192.168.0.12)
+
+          Generated {{ ansible_date_time.iso8601 }}.
+
+          ## What will happen
+
+          1. pve2 is clean-installed manually with Proxmox VE {{ target_pve_release }}.
+          2. **All five current guests and their local disks are intentionally lost.**
+          3. Its SSH host key changes and must be verified out of band.
+          4. It joins the cluster empty. No guest restore is part of this migration.
+          5. Desired software is later rebuilt from `docs/rebuild-catalog.md`.
+
+          ## What protects the data that must survive
+
+          | gate | status |
+          |---|---|
+          | two pve1 backup generations | PASS |
+          | every pve1 archive verified | PASS |
+          | pve2 excluded from protected set | PASS |
+          | exact five pve2 guests cataloged and stopped | PASS |
+          | pve2 host configuration captured | PASS |
+          | rebuild catalog present | PASS |
+          | collisions resolve on clean install | PASS |
+
+          ## Approval required
+
+          The ISO installation is manual. The approval below unlocks only the
+          post-install validation around that operator-performed rebuild:
+
+          ```bash
+          make postinstall-pve2 EXTRA="-e allow_destroy_pve2=true \
+            -e destroy_confirmation_pve2='{{ destroy_confirmation_pve2_required }}' \
+            -e pve2_reinstalled=true -e pve2_fingerprint_verified=true"
+          ```
+
+          ## Rollback boundary
+
+          The two pve1 guests can be restored from untouched archives. The five
+          pve2 guests cannot: their rebuild catalog is documentation, not a backup.
+
+    - name: Report the verdict
+      ansible.builtin.debug:
+        msg:
+          - "ALL GATES PASS. .12 may be rebuilt manually."
+          - "Proposal: artifacts/destroy-pve2-proposal.md"
+          - "The five pve2 guests will not be recoverable from this migration."

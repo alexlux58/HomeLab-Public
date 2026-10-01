@@ -57,4 +57,3 @@ No pre-existing `homelab-observability` project was found. VM 300 has Uptime
 Kuma but no Prometheus, Grafana, Loki, Alloy, PVE Exporter, SNMP Exporter,
 Blackbox Exporter, Node Exporter, or cAdvisor container. The current NPM and
 application ports do not conflict with the dedicated VM design.
-

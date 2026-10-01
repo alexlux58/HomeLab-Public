@@ -1,0 +1,20 @@
+sequenceDiagram
+  autonumber
+  actor Op as Operator (attended)
+  participant Auto as Automation (make)
+  participant B1 as bao-1
+  participant R as Five separate custody places
+  Auto->>B1: validate-uninitialized
+  B1-->>Auto: initialized=false, sealed=true
+  Note over Auto: Automation stops here. It never runs bao operator init.
+  Op->>B1: bao operator init, 5 shares, threshold 3, PGP keys
+  B1-->>Op: PGP-encrypted shares and root token
+  Note over Op,R: 2026-10-10, one operator owns all five offline keys
+  Op->>R: One key and encrypted share per place
+  R-->>Op: Recover any three distinct shares offline
+  Op->>B1: Three hidden-prompt entries per voter (unseal)
+  Note over Op,R: Protects two lost places, not coercion of the operator
+  B1-->>Op: Unsealed, Raft followers join
+  Op->>Auto: configure-post-init (gated)
+  Auto->>B1: Policies, auth methods, engines (no secret values)
+  Op->>B1: Revoke the initial root token

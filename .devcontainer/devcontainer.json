@@ -1,0 +1,19 @@
+{
+  "name": "Home Lab toolchain",
+  "build": { "dockerfile": "Dockerfile" },
+  "remoteUser": "dev",
+  "mounts": ["source=D:/homelab-state,target=/homelab-state,type=bind"],
+  "workspaceFolder": "/workspaces/Home-Lab",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "charliermarsh.ruff",
+        "opentofu.vscode-opentofu",
+        "ms-python.python"
+      ]
+    }
+  }
+}

@@ -1,0 +1,10 @@
+---
+# Deploy the digest-pinned Compose project (Radarr, Prowlarr, exporters, Alloy).
+# Gate: arr_stack_allow + arr_stack_confirmation "MEDIA DEPLOY media-vm".
+- name: Deploy the *arr stack
+  hosts: media_guests
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  roles:
+    - role: arr_stack

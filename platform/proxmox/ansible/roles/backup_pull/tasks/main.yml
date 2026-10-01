@@ -1,0 +1,72 @@
+---
+- name: Require the exact approval and one inventory node
+  ansible.builtin.assert:
+    that:
+      - allow_backup_pull | bool
+      - backup_pull_confirmation == 'INSTALL BACKUP PULL ON ' ~ inventory_hostname ~ ' ' ~ ansible_host
+      - ansible_play_hosts_all | length == 1
+      - inventory_hostname in groups['proxmox']
+      - backup_pull_source_address == '192.168.0.70'
+      - backup_pull_server_path == '/usr/local/sbin/homelab-backup-pull'
+      - backup_pull_public_key is match('^ssh-ed25519 [A-Za-z0-9+/]{68}([ ]+[^\r\n]+)?$')
+    fail_msg: Supply the reviewed public key, allow flag and exact node confirmation.
+    quiet: true
+
+- name: Read normalized load and backup mount on each node
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - >-
+        import json, os;
+        print(json.dumps(dict(load=os.getloadavg()[1] / os.cpu_count(),
+        mounted=os.path.ismount('/mnt/pve/synology-backup'))))
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['proxmox'] }}"
+  register: backup_pull_loads
+  changed_when: false
+
+- name: Require the chosen node to mount the backups and be least loaded
+  ansible.builtin.assert:
+    that:
+      - (item.stdout | from_json).mounted | bool
+      - >-
+        (item.stdout | from_json).load <=
+        (backup_pull_loads.results | map(attribute='stdout') | map('from_json')
+        | selectattr('mounted') | map(attribute='load') | min)
+    quiet: true
+    fail_msg: Chosen node is not the least-loaded mounted node; stop and review a new node confirmation.
+  loop: "{{ backup_pull_loads.results }}"
+  when: item.item == inventory_hostname
+
+- name: Read this host identity
+  ansible.builtin.command: hostname
+  register: backup_pull_hostname
+  changed_when: false
+
+- name: Require the pinned inventory identity
+  ansible.builtin.assert:
+    that:
+      - backup_pull_hostname.stdout == expected_hostname
+      - expected_host_fingerprint | length > 0
+    quiet: true
+
+- name: Install the read-only forced command
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../scripts/backup_pull_server.py"
+    dest: "{{ backup_pull_server_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install only this restricted public key without replacing other keys
+  ansible.posix.authorized_key:
+    user: root
+    key: "{{ backup_pull_public_key }}"
+    state: present
+    exclusive: false
+    key_options: >-
+      {{ ['from="' ~ backup_pull_source_address ~ '"',
+          'command="' ~ backup_pull_server_path ~ '"',
+          'no-port-forwarding', 'no-agent-forwarding', 'no-pty',
+          'no-X11-forwarding'] | join(',') }}

@@ -1,0 +1,18 @@
+---
+# Expected confirmation: "MEDIA DEPLOY media-vm"
+arr_stack_allow: false
+arr_stack_confirmation: ""
+
+# Recyclarr runs --preview unless this second gate is supplied.
+# Expected confirmation: "RECYCLARR SYNC media-vm"
+arr_stack_allow_recyclarr_sync: false
+arr_stack_recyclarr_confirmation: ""
+
+arr_stack_project_dir: /opt/lux-media
+arr_stack_config_root: "{{ role_path }}/../../../config"
+arr_stack_expected_containers: [radarr, prowlarr, exportarr-radarr, exportarr-prowlarr, node-exporter, alloy]
+# Operator-installed env files (root:root 0600). Metadata is checked, never content.
+arr_stack_secret_files:
+  - /etc/media/secrets/exportarr-radarr.env
+  - /etc/media/secrets/exportarr-prowlarr.env
+  - /etc/media/secrets/recyclarr.env

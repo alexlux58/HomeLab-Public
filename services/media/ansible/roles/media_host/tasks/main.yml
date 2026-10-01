@@ -1,0 +1,70 @@
+---
+- name: Require the media-host approval and its exact confirmation
+  ansible.builtin.assert:
+    that:
+      - media_host_allow | bool
+      - media_host_confirmation == ('MEDIA HOST ' ~ inventory_hostname)
+    fail_msg: "Set media_host_allow=true and media_host_confirmation='MEDIA HOST {{ inventory_hostname }}'."
+    quiet: true
+
+- name: Require the service account that the containers run as
+  ansible.builtin.command:
+    argv: [getent, passwd, "{{ media_host_uid | string }}"]
+  register: media_host_account
+  changed_when: false
+  failed_when: media_host_account.rc != 0
+
+- name: Require the operator-installed NAS credential (metadata only)
+  ansible.builtin.stat:
+    path: "{{ media_host_cifs_credentials }}"
+    get_checksum: false
+  register: media_host_cred
+
+- name: Refuse a missing or loosely permissioned NAS credential
+  ansible.builtin.assert:
+    that:
+      - media_host_cred.stat.exists
+      - media_host_cred.stat.pw_name == 'root'
+      - media_host_cred.stat.mode == '0600'
+    fail_msg: "Install {{ media_host_cifs_credentials }} as root:root 0600 first (operator step)."
+    quiet: true
+
+- name: Install Docker, Compose and CIFS support from the Ubuntu archive
+  ansible.builtin.apt:
+    name: "{{ media_host_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+- name: Create the service configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ media_host_uid }}"
+    group: "{{ media_host_gid }}"
+    mode: "0750"
+  loop: "{{ media_host_service_dirs }}"
+  become: true
+
+- name: Mount the NAS shares on demand (automount, never blocks boot)
+  ansible.posix.mount:
+    src: "//{{ media_host_nas_address }}/{{ item.share }}"
+    path: "{{ item.path }}"
+    fstype: cifs
+    opts: "{{ (['credentials=' ~ media_host_cifs_credentials, 'uid=' ~ media_host_uid, 'gid=' ~ media_host_gid]
+              + media_host_mount_options) | join(',') }}"
+    state: mounted
+  loop: "{{ media_host_mounts }}"
+  become: true
+
+- name: Check for a transcode device
+  ansible.builtin.stat:
+    path: /dev/dri
+  register: media_host_dri
+
+- name: Record the transcode design
+  ansible.builtin.debug:
+    msg: >-
+      {{ '/dev/dri present but unused' if media_host_dri.stat.exists else 'No transcode device in the guest' }}:
+      Plex runs natively on workstation and transcodes there (GTX 1080 NVENC needs Plex Pass; CPU otherwise).

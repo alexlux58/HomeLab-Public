@@ -1,0 +1,15 @@
+sequenceDiagram
+  autonumber
+  actor Op as Operator
+  participant Bao as OpenBao (VIP)
+  participant Agent as OpenBao Agent on VM 310
+  participant App as PVE exporter
+  Op->>Bao: Create a response-wrapped SecretID for the role
+  Op->>Agent: Install RoleID and wrapped SecretID (mode 0600)
+  Agent->>Bao: Unwrap, then AppRole login (RoleID + SecretID, source CIDR bound)
+  Bao-->>Agent: Short-TTL token, one policy
+  Agent->>Bao: Read kv/observability/pve-exporter
+  Bao-->>Agent: Secret
+  Agent->>App: Render file under /run (mode 0600)
+  App->>App: Read the *_FILE path, no token in Compose or inventory
+  Agent->>Bao: Renew or re-login before TTL expiry

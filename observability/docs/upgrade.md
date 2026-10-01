@@ -3,7 +3,7 @@
 Never run a floating `latest` tag or unattended image updater.
 
 1. Review upstream release notes and security advisories.
-2. Change one component tag in `docker/compose.yml` and `VERSION_MATRIX.md`.
+2. Change one component tag in `docker/compose.yaml` and `VERSION_MATRIX.md`.
 3. Run offline lint/tests and `docker compose config`.
 4. Run `scripts/verify-images.sh` on a Docker-capable staging host and record
    resolved digests outside Git artifacts.
@@ -16,4 +16,3 @@ Never run a floating `latest` tag or unattended image updater.
 Upgrade Prometheus/Loki storage formats only after reading their explicit
 upgrade paths. A Grafana database migration can be one-way; the pre-upgrade
 SQLite-safe archive is mandatory.
-

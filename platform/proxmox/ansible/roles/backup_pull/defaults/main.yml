@@ -1,0 +1,7 @@
+---
+allow_backup_pull: false  # noqa: var-naming[no-role-prefix] -- canonical allow_* approval gate
+backup_pull_confirmation: ""
+backup_pull_node: pve1
+backup_pull_public_key: ""
+backup_pull_source_address: 192.168.0.70
+backup_pull_server_path: /usr/local/sbin/homelab-backup-pull

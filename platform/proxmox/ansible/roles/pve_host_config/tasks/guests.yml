@@ -1,0 +1,45 @@
+---
+# onboot and startup are plain VM options, not cloud-init options, so changing
+# them never regenerates a guest's SSH host keys (see lessons-learned).
+# regex_findall is used instead of regex_search(..., '\1'): a backreference
+# inside a folded scalar is passed through verbatim (lessons-learned).
+- name: Read the guest's current configuration
+  ansible.builtin.command:
+    argv: [qm, config, "{{ pve_host_config_guest.value.vmid | string }}"]
+  register: pve_host_config_qm
+  changed_when: false
+  failed_when: false
+
+- name: Report a declared guest that does not exist on this node
+  ansible.builtin.debug:
+    msg: "VMID {{ pve_host_config_guest.value.vmid }} is declared on {{ pve_host_config_node }} but absent; L3 recreates it."
+  when: pve_host_config_qm.rc != 0
+
+- name: Work out the declared and current values
+  ansible.builtin.set_fact:
+    pve_host_config_onboot_want: "{{ 1 if pve_host_config_guest.value.onboot | default(false) else 0 }}"
+    pve_host_config_onboot_have: "{{ (pve_host_config_qm.stdout | regex_findall('(?m)^onboot: ([01])') + ['0']) | first }}"
+    pve_host_config_startup_want: >-
+      {{ ('order=' ~ pve_host_config_guest.value.startup.order ~ ',up=' ~ pve_host_config_guest.value.startup.up
+          ~ ',down=' ~ pve_host_config_guest.value.startup.down)
+         if pve_host_config_guest.value.startup is defined else '' }}
+    pve_host_config_startup_have: "{{ (pve_host_config_qm.stdout | regex_findall('(?m)^startup: (.*)$') + ['']) | first }}"
+  when: pve_host_config_qm.rc == 0
+
+- name: Set onboot to the deliberate lab.yml value
+  ansible.builtin.command:
+    argv: [qm, set, "{{ pve_host_config_guest.value.vmid | string }}", --onboot, "{{ pve_host_config_onboot_want }}"]
+  when:
+    - pve_host_config_qm.rc == 0
+    - pve_host_config_guest.value.onboot is not none
+    - (pve_host_config_onboot_want | int) != (pve_host_config_onboot_have | int)
+  changed_when: true
+
+- name: Set the startup order to the lab.yml value
+  ansible.builtin.command:
+    argv: [qm, set, "{{ pve_host_config_guest.value.vmid | string }}", --startup, "{{ pve_host_config_startup_want }}"]
+  when:
+    - pve_host_config_qm.rc == 0
+    - pve_host_config_startup_want | length > 0
+    - pve_host_config_startup_want != pve_host_config_startup_have
+  changed_when: true

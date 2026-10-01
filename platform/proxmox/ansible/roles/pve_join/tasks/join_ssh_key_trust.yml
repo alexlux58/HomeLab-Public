@@ -1,0 +1,109 @@
+---
+# Optional automated path.
+#
+# `pvecm add --use_ssh` needs password-free root SSH from the joining node to the
+# seed. This establishes that trust using keys that ALREADY EXIST:
+#   * the joining node's existing root public key is authorised on the seed;
+#   * the seed's host key is copied to the joining node over the controller's
+#     already-authenticated connection — it is never blindly accepted, and
+#     StrictHostKeyChecking is never disabled.
+
+- name: Require the destructive opt-in tag as well as the approval variables
+  ansible.builtin.assert:
+    that:
+      - "'destructive' in ansible_run_tags or 'never' in ansible_run_tags"
+    fail_msg: |
+      The approval variables are set, but the destructive tasks in this play are
+      tagged `never,destructive` and were therefore not requested.
+
+      Re-run the same command with the explicit opt-in:
+        --tags all,destructive
+      (the Makefile targets for destructive stages already pass this).
+    success_msg: "Destructive opt-in present (--tags all,destructive)."
+
+- name: Look for an existing root public key on the joining node
+  ansible.builtin.stat:
+    path: "/root/.ssh/{{ item }}"
+  loop: [id_ed25519.pub, id_rsa.pub]
+  register: pve_join_root_keys
+
+- name: Select the joining node's existing root public key
+  ansible.builtin.set_fact:
+    pve_join_root_key_path: >-
+      {{ (pve_join_root_keys.results | selectattr('stat.exists') | map(attribute='stat.path') | list | first) | default('') }}
+
+- name: Refuse to continue if the node has no pre-existing root key
+  ansible.builtin.assert:
+    that:
+      - pve_join_root_key_path | length > 0
+    fail_msg: |
+      {{ inventory_hostname }} has no existing root SSH key, and this project does
+      not generate keys. Use the manual join instead:
+        -e join_method=manual
+
+- name: Read the joining node's root public key
+  ansible.builtin.slurp:
+    src: "{{ pve_join_root_key_path }}"
+  register: pve_join_root_pub
+
+- name: Read the seed's SSH host key over the already-authenticated connection
+  ansible.builtin.command:
+    argv: [ssh-keyscan, -t, ed25519, "{{ cluster_seed_ip }}"]
+  changed_when: false
+  delegate_to: "{{ cluster_seed_host }}"
+  register: pve_join_seed_hostkey
+
+- name: Confirm the seed host key matches the operator-verified fingerprint
+  ansible.builtin.command:
+    argv: [ssh-keygen, -lf, /etc/ssh/ssh_host_ed25519_key.pub, -E, sha256]
+  changed_when: false
+  delegate_to: "{{ cluster_seed_host }}"
+  register: pve_join_seed_fp
+
+- name: Assert the seed host key is the one recorded in inventory
+  ansible.builtin.assert:
+    that:
+      - pve_join_seed_fp.stdout.split()[1] == hostvars[cluster_seed_host].expected_host_fingerprint
+    fail_msg: |
+      The seed's SSH host key does not match the fingerprint recorded in
+      ../../inventory/hosts.yml. Refusing to propagate an unverified host key.
+        recorded: {{ hostvars[cluster_seed_host].expected_host_fingerprint }}
+        observed: {{ pve_join_seed_fp.stdout.split()[1] }}
+
+- name: Authorise the joining node's existing root key on the seed
+  ansible.posix.authorized_key:
+    user: root
+    key: "{{ pve_join_root_pub.content | b64decode }}"
+    state: present
+    comment: "pvecm join trust for {{ expected_hostname }} — added {{ ansible_date_time.date }}"
+  delegate_to: "{{ cluster_seed_host }}"
+
+- name: Install the VERIFIED seed host key into the joining node's known_hosts
+  ansible.builtin.known_hosts:
+    path: /root/.ssh/known_hosts
+    name: "{{ cluster_seed_ip }}"
+    key: "{{ pve_join_seed_hostkey.stdout_lines | select('search', 'ssh-ed25519') | first }}"
+    state: present
+
+- name: Join the cluster
+  ansible.builtin.command:
+    argv:
+      - pvecm
+      - add
+      - "{{ cluster_seed_ip }}"
+      - --link0
+      - "{{ ansible_host }}"
+      - --use_ssh
+  changed_when: true
+  register: pve_join_result
+  tags: [never, destructive, cluster_join]
+
+- name: Show the join output
+  ansible.builtin.debug:
+    var: pve_join_result.stdout_lines
+
+- name: Wait for the cluster filesystem to settle
+  ansible.builtin.wait_for:
+    timeout: "{{ pve_join_wait_seconds }}"
+  delegate_to: localhost
+  become: false
