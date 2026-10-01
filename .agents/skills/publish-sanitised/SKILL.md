@@ -32,7 +32,8 @@ is never published.
    address, name or key.
 5. If publishing and pushing are authorized, commit from the devcontainer
    with the scanner hook, then push only to this checkout's approved origin
-   after checks pass. The pre-push hook scans the commits with gitleaks.
+   after checks pass. The hook scans every new commit with gitleaks, excluding
+   only verified already-remote history; a new origin scans all source history.
    Never force, delete, mirror, bypass hooks or use another remote or URL.
    Git transport may use the existing Windows gh/GCM keyring without exporting
    credentials; install the common pre-push guard in both checkouts first.

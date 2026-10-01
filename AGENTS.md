@@ -109,7 +109,7 @@ walkthrough and Music Library operator bootstrap MEMORY hunk. Stage MEMORY selec
 Agents may push only to this repo's origin (HomeLab-Private) or public/'s origin
 (HomeLab-Public), after relevant devcontainer checks and with the pre-push hook.
 Install `python3 tools/repo-checks/install_push_hook.py`: resolved URL validation
-and gitleaks on every pushed history. Windows gh/GCM transport is allowed;
+and gitleaks on every newly pushed commit, excluding verified remote history. Windows gh/GCM is allowed;
 never extract/transfer credentials. Public commits stay in the devcontainer for PDF scanning.
 Never force (`--force`, `--force-with-lease`, `+refspec`), delete (`--delete`, `:ref`),
 mirror, bypass hooks or use another remote/URL. GitHub: hosted checks only,

@@ -8,7 +8,7 @@
 | Ansible playbooks | 56 |
 | Ansible roles | 42 |
 | OpenTofu roots | 6 |
-| Python test functions (before parametrisation) | 288 |
+| Python test functions (before parametrisation) | 289 |
 | OpenTofu test runs (mocked providers) | 5 |
 | GitHub Actions workflows | 2 |
 | Architecture decision records | 9 |

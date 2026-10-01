@@ -78,3 +78,18 @@ def test_windows_parent_inspection_uses_native_argv(policy, monkeypatch):
     monkeypatch.setattr(policy.subprocess, "check_output", lambda *a, **k: json.dumps(command))
     monkeypatch.setattr(policy, "windows_argv", lambda value: [value])
     assert policy.windows_invoking_git() == [command]
+
+
+def test_push_scans_every_new_commit_and_only_excludes_remote_history(policy):
+    main, snapshot, previous = "1" * 40, "2" * 40, "3" * 40
+    assert policy.pushed_revisions([main, snapshot], [(policy.ZERO, main), (policy.ZERO, snapshot)]) == [
+        main,
+        snapshot,
+    ]
+    assert policy.pushed_revisions([main, snapshot], [(previous, main), (policy.ZERO, snapshot)]) == [
+        main,
+        snapshot,
+        "--not",
+        previous,
+    ]
+    assert policy.pushed_revisions([main], [(previous, main), (previous, main)]) == [main, "--not", previous]

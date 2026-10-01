@@ -125,6 +125,12 @@ def hook_updates(lines: list[str]) -> list[tuple[str, str]]:
     return updates
 
 
+def pushed_revisions(revisions: list[str], updates: list[tuple[str, str]]) -> list[str]:
+    """D6 scans newly transferred commits, excluding verified remote history."""
+    remote = list(dict.fromkeys(before for before, _ in updates if before and before != ZERO))
+    return revisions + (["--not", *remote] if remote else [])
+
+
 def main() -> int:
     try:
         argv = invoking_git()
@@ -152,10 +158,12 @@ def main() -> int:
                 if result.returncode:
                     raise ValueError("only fast-forward pushes are allowed")
         # pre-commit's hook selects one update. Resolve every explicit source
-        # ref in the invoking push so a multi-ref push scans every history.
+        # ref in the invoking push so every newly pushed history is scanned.
+        # Only Git's verified remote tips are excluded, after ancestry checks;
+        # a new remote scans the complete source history.
         refs = [a for a in argv[argv.index("push") + 1 :] if not a.startswith("-")][1:]
         revisions = [git("rev-parse", f"{ref.split(':')[0]}^{{commit}}") for ref in refs] or [after]
-        revision = " ".join(revisions)
+        revision = " ".join(pushed_revisions(revisions, updates))
         return subprocess.run(
             ["gitleaks", "git", "--redact=100", "--no-banner", f"--log-opts={revision}"],
             check=False,

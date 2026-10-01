@@ -1,10 +1,7 @@
 flowchart TB
   subgraph app["Application layer (nightly, append-only)"]
-    a300["VM 300: SQLite + MariaDB dump 02:45"]
-    a310["VM 310: TSDB snapshot + grafana.db 03:30"]
-    a330["VM 330: pg_dump 03:45"]
-    aarr["*arr zips 05:40 to media-backups"]
-    aplex["Plex DB + Preferences 04:30"]
+    apps["VM 300: SQLite + MariaDB 02:45<br/>VM 310: TSDB + Grafana 03:30<br/>VM 330: pg_dump 03:45"]
+    media["Plex DB + Preferences 04:30<br/>*arr zips 05:40<br/>to media-backups"]
     abao["OpenBao encrypted Raft (after init)"]
   end
   subgraph vm["Guest layer (vzdump, keep-all=1)"]
@@ -14,8 +11,8 @@ flowchart TB
     v1[("NAS Volume 1<br/>single disk: no redundancy")]
     v2[("NAS Volume 2 RAID1<br/>Media, media-backups")]
   end
-  a300 & a310 & a330 --> vz --> v1
-  aarr & aplex --> v2
+  apps --> vz --> v1
+  media --> v2
   abao --> v1
   reader["One confirmed PVE node<br/>forced SSH: list/get only"]
   tower[("workstation D: second copy<br/>daily / missed-start catch-up<br/>100 GB reserve; never delete")]
