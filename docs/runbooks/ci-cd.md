@@ -14,7 +14,8 @@ Editing either workflow runs every component again. The music job installs
 Qt's Linux graphics libraries and uses the offscreen platform for tests.
 Mocked OpenTofu tests supply a disposable encryption passphrase; production
 state still requires the operator's passphrase. Compose checks parse and
-validate templates without resolving service secrets files. Ansible uses
+validate templates with a pinned, checksum-verified Compose parser without
+resolving service secrets files. Ansible uses
 a controller-owned temporary directory under the current user's home.
 
 Actionlint checks syntax. Zizmor is installed at a pinned version with a
