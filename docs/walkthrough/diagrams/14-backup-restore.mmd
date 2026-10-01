@@ -14,11 +14,11 @@ flowchart TB
   apps --> vz --> v1
   media --> v2
   abao --> v1
-  reader["One confirmed PVE node<br/>forced SSH: list/get only"]
+  reader["Confirmed pve1 / pve1<br/>forced SSH: list/get only"]
   tower[("workstation D: second copy<br/>daily / missed-start catch-up<br/>100 GB reserve; never delete")]
   v1 -. read-only mount .-> reader
   tower -. outbound SSH pull / SHA-256 verify .-> reader
-  Note["D3 approved; installation awaits key and SSH access<br/>D: is local, neither off-site nor immutable"]
+  Note["D3 installed; verify every copied archive<br/>D: is local, neither off-site nor immutable"]
   Note -.-> tower
   restore["Restore drills: isolated VMID, NICs link_down,<br/>verify, then promote (L6)"]
   v1 & v2 & tower -.-> restore

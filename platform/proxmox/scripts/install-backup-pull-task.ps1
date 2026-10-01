@@ -30,13 +30,22 @@ $control = 'D:\homelab-backups\control'
 $scriptTarget = Join-Path $control 'backup-pull.ps1'
 $pinTarget = Join-Path $control 'known_hosts'
 if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) { throw 'Task already exists; review an update separately' }
-if (Test-Path -LiteralPath $pinTarget) { throw 'Pin file already exists; review instead of replacing it' }
+$verifiedPin = $hostLines[0] + "`n"
+if ((Test-Path -LiteralPath $pinTarget) -and
+    [IO.File]::ReadAllText($pinTarget) -cne $verifiedPin) {
+    throw 'Existing pin differs; stop and review instead of replacing it'
+}
 New-Item -ItemType Directory -Path $control -Force | Out-Null
 # Copy public host pin only after the fingerprint comparison above.
-[IO.File]::WriteAllText($pinTarget, $hostLines[0] + "`n", [Text.Encoding]::ASCII)
+if (-not (Test-Path -LiteralPath $pinTarget)) {
+    [IO.File]::WriteAllText($pinTarget, $verifiedPin, [Text.Encoding]::ASCII)
+}
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'backup-pull.ps1') -Destination $scriptTarget -ErrorAction Stop
 $xml = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'backup-pull-task.xml') -Raw
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $xml = $xml.Replace('__OPERATOR_SID__', $sid).Replace('__NODE_ADDRESS__', $config.address)
-Register-ScheduledTask -TaskName $TaskName -Xml $xml | Out-Null
+Register-ScheduledTask -TaskName $TaskName -Xml $xml -ErrorAction Stop | Out-Null
+if (-not (Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop)) {
+    throw 'Task registration did not create the requested task'
+}
 Write-Output ('Installed ' + $TaskName + '; daily 06:30, missed-start catch-up, WakeToRun=false, logged-in operator only')

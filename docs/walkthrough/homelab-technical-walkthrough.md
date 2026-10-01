@@ -798,8 +798,12 @@ key to list/get on the NAS-mounted archive directory of one confirmed node.
 workstation initiates SSH and verifies hashes before publishing each D: copy;
 its daily task catches missed starts while awake, never wakes the PC and
 stops below a 100 GB reserve. The exact pve1 installation confirmation was
-supplied on 2026-09-30, but the public key and permitted SSH execution remain
-prerequisites; neither installation nor a verified D: archive is claimed.
+supplied on 2026-09-30. The public key and all three host pins were verified;
+the gated preflight confirmed pve1 as the least-loaded mounted node. The
+operator ran that one stage with an interactive password prompt, installing
+the server and restricted key. The Windows task is installed. Accept each
+D: copy only after its SHA-256 matches the NAS before and after the pull;
+registration or a running task alone does not prove that acceptance.
 Copies are never pruned. D: is a second on-site copy exposed to desktop
 ransomware. Future off-site data transfer must be an outbound push; GitHub
 has no path into the lab (ADR-0009).

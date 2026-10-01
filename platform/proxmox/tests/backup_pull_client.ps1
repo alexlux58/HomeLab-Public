@@ -40,6 +40,10 @@ Assert-True ((Get-FileHash -LiteralPath $target).Hash.ToLowerInvariant() -eq $ha
 Assert-True ($script:Gets -eq 1) 'Expected one newest archive'
 Assert-True (-not (Test-Path -LiteralPath (Join-Path $Destination $old))) 'Old archive was copied'
 Assert-True ((Get-Content -LiteralPath (Join-Path $Destination 'pull.log') -Raw) -match 'NAS_UNCHANGED=true') 'Acceptance log missing'
+$logged = Get-Content -LiteralPath (Join-Path $Destination 'pull.log') -Raw
+foreach ($phase in @('START free_bytes=', 'MANIFEST finalized_archives=', 'DOWNLOADING ', 'VERIFIED partial ', 'VERIFYING NAS manifest after downloads')) {
+    Assert-True ($logged.Contains($phase)) ('Progress phase missing: ' + $phase)
+}
 $before = (Get-Item -LiteralPath $target).LastWriteTimeUtc
 Invoke-BackupPull | Out-Null
 Assert-True ($script:Gets -eq 1 -and (Get-Item -LiteralPath $target).LastWriteTimeUtc -eq $before) 'Existing archive was fetched or changed'

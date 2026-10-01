@@ -158,6 +158,14 @@ def test_task_schedule_and_windows_boundaries():
     assert installer.index("Host fingerprint does not match") < installer.index("WriteAllText")
 
 
+def test_task_xml_accepts_windows_unicode_registration():
+    # Register-ScheduledTask receives a UTF-16 COM string, even for a UTF-8
+    # source file. An explicit UTF-8 declaration contradicts that transport.
+    xml = (ROOT / "scripts/backup-pull-task.xml").read_text()
+    task = ET.fromstring(xml.encode("utf-16"))
+    assert task.tag == "{http://schemas.microsoft.com/windows/2004/02/mit/task}Task"
+
+
 def test_node_export_matches_inventory():
     import json
     import sys

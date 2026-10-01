@@ -110,10 +110,12 @@ function Invoke-BackupPull {
         $lock = [IO.File]::Open((Join-Path $folder 'pull.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::Write, [IO.FileShare]::None)
         $free = Get-BackupFreeBytes $folder
         if ($free -lt $minimum) { throw 'D: has less than 100 GB free; copies stopped, nothing deleted' }
+        Write-BackupLog ('START free_bytes=' + $free + '; reading NAS manifest')
         $listingBefore = Invoke-BackupSsh 'list'
         $all = @(ConvertFrom-ArchiveList $listingBefore)
         if ($all.Count -eq 0) { throw 'No finalized archives found' }
         if (@($all | Group-Object Name | Where-Object Count -gt 1).Count) { throw 'Duplicate manifest name' }
+        Write-BackupLog ('MANIFEST finalized_archives=' + $all.Count)
         $pending = @()
         foreach ($archive in (Get-NewestArchives $all)) {
             $target = Join-Path $folder $archive.Name
@@ -129,14 +131,17 @@ function Invoke-BackupPull {
             }
             $partial = $target + '.' + [Guid]::NewGuid().ToString('N') + '.partial'
             # Failed partial files are retained for review; this script never deletes.
+            Write-BackupLog ('DOWNLOADING ' + $archive.Name + ' bytes=' + $archive.Size)
             Invoke-BackupSsh ('get ' + $archive.Name) $partial
             if ((Get-Item -LiteralPath $partial).Length -ne $archive.Size) { throw 'Downloaded archive size differs' }
             $digest = (Get-FileHash -LiteralPath $partial -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($digest -ne $archive.SHA256) { throw ('Downloaded SHA-256 differs: ' + $archive.Name) }
+            Write-BackupLog ('VERIFIED partial ' + $archive.Name + ' SHA256=' + $digest)
             $pending += [pscustomobject]@{Archive=$archive; Partial=$partial; Target=$target; Digest=$digest}
         }
         # Hashing the NAS manifest is costly: one before/after pair for the whole batch.
         if ($pending.Count) {
+            Write-BackupLog 'VERIFYING NAS manifest after downloads'
             $after = @(ConvertFrom-ArchiveList (Invoke-BackupSsh 'list'))
         }
         foreach ($copy in $pending) {
