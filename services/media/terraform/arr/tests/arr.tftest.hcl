@@ -7,6 +7,7 @@ mock_provider "prowlarr" {}
 variables {
   qbittorrent_port = 8080
   radarr_api_key   = "mock-radarr-key"
+  state_passphrase = "offline-mock-state-encryption-only"
 }
 
 run "declares_only_the_owned_objects" {

@@ -10,6 +10,13 @@ Contracts, gitleaks and docs always run. Music Library keeps its own
 lint, test and import job. Actions are pinned by full SHA; workflow
 permissions default to empty and jobs request read access only.
 
+Editing either workflow runs every component again. The music job installs
+Qt's Linux graphics libraries and uses the offscreen platform for tests.
+Mocked OpenTofu tests supply a disposable encryption passphrase; production
+state still requires the operator's passphrase. Compose checks parse and
+validate templates without resolving service secrets files. Ansible uses
+a controller-owned temporary directory under the current user's home.
+
 Actionlint checks syntax. Zizmor is installed at a pinned version with a
 pinned SHA-256 and runs offline audits. There are no configured GitHub
 secrets, environments, lab runners, deploy dispatches or plan jobs.

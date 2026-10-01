@@ -27,7 +27,7 @@ RUN apt-get update \
       ca-certificates curl git jq make openssh-client perl poppler-utils shellcheck unzip xz-utils \
       libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core \
       libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
-      libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libgl1 libegl1 \
+      libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libgl1 libegl1 libopengl0 \
  && rm -r /var/lib/apt/lists/*
 
 # OpenTofu, verified against the release's SHA256SUMS.

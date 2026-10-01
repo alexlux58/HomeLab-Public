@@ -1,6 +1,7 @@
 """D1: mounted local ciphertext state, strict templates and operator migration."""
 
 import json
+import re
 
 import pytest
 
@@ -27,6 +28,13 @@ def test_local_encrypted_root(root, directory, spec):
     assert 'method "unencrypted"' not in text
     assert "fallback" not in text
     assert "sensitive   = true" in text
+    variable = text.split('variable "state_passphrase"', 1)[1].split("}", 1)[0]
+    assert "default" not in variable
+    if filename == "state.tofu":
+        mocks = list((root / directory / "tests").glob("*.tftest.hcl"))
+        assert mocks
+        for mock in mocks:
+            assert re.search(r'state_passphrase\s*=\s*"offline-mock-state-encryption-only"', mock.read_text())
 
 
 def test_mount_and_operator_only_migration(root):

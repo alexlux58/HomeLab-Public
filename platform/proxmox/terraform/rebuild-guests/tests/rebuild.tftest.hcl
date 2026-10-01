@@ -12,6 +12,7 @@ mock_provider "proxmox" {
 
 variables {
   proxmox_api_token = "mock"
+  state_passphrase  = "offline-mock-state-encryption-only"
 }
 
 run "default_plan_creates_nothing" {
